@@ -20,12 +20,23 @@ class Node {
 class RBTree {
     public:
         Node* root;
+        size_t memtable_size;   // Maximum capacity
+        size_t curr_size;       // Current size
 
-        RBTree(Node* root=nullptr): root(root) {}
+        RBTree(size_t capacity, Node* root=nullptr): root(root), memtable_size{capacity} {}
         ~RBTree() {
             // FIXME: remember to implement
         }
 
-        // Add member functions
+        void put(const double& key, const double& value);
+        double get(const double& key);
 
+
+    private:
+        Node* search(Node* root, const double& key);
+        void rotateLeft(Node* node);
+        void rotateRight(Node* node);
+        void selfBalance(Node* node);
+        void insertNode(Node* node);
+        void deleteNode(Node* node);
 };

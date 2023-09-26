@@ -3,8 +3,22 @@
 using namespace std;
 
 int main(int argc, char **argv) {
-    RBTree* tree = new RBTree();
-    tree->root = new Node(1, 0);
+    // TODO: Make more throughout tests
+    RBTree memtable(5); // Example with memtable_size 5
 
-    cout << "(" << tree->root->key << ", " << tree->root->value << ")" << endl;
+    memtable.put(1, 10);
+    memtable.put(2, 20);
+    memtable.put(3, 30);
+    memtable.put(4, 40);
+    memtable.put(5, 50);
+
+    double key = 3;
+    double value = memtable.get(key);
+    if (value != -1) {
+        cout << "Found {Key: " << key << ", Value: " << value << "}" << endl;
+    } else {
+        cout << "Not found Key: " << key << endl;
+    }
+
+    return 0;
 }
