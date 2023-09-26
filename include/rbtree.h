@@ -20,8 +20,9 @@ class Node {
 class RBTree {
     public:
         Node* root;
+        int capacity;
 
-        RBTree(Node* root=nullptr): root(root) {}
+        RBTree(Node* root=nullptr, int capacity=0): root(root), capacity(capacity) {}
         ~RBTree() {
             // FIXME: remember to implement
         }
