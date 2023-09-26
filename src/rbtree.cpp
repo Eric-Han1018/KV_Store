@@ -29,6 +29,27 @@ double RBTree::get(const double& key) {
     }
 }
 
+// Scan the memtable to retrieve all KV-pairs in a key range in key order (key1 < key2)
+vector<pair<int, int>> RBTree::scan(const int& key1, const int& key2) {
+    vector<pair<int, int>> sorted_KV;
+
+    inorderScan(sorted_KV, this->root, key1, key2);
+
+    return sorted_KV;
+}
+
+// Helper function to recursively perform inorder scan
+void RBTree::inorderScan(vector<pair<int, int>>& sorted_KV, Node* root, const int& key1, const int& key2) {
+    if (root != nullptr) {
+        inorderScan(sorted_KV, root->left, key1, key2);
+        // Only include KV-pairs that are in the range
+        if (key1 <= root->key && root->key <= key2) {
+            sorted_KV.push_back({root->key, root->value});
+        }
+        inorderScan(sorted_KV, root->right, key1, key2);
+    }
+}
+
 Node* RBTree::search(Node* root, const double& key) {
     if (root == nullptr || root->key == key) {
         return root;

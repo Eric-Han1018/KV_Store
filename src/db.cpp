@@ -20,5 +20,10 @@ int main(int argc, char **argv) {
         cout << "Not found Key: " << key << endl;
     }
 
+    vector<pair<int, int>> sorted_KV = memtable.scan(3, 10);
+    for (pair<int, int> KV: sorted_KV) {
+        cout << KV.first << ", " << KV.second << endl;
+    }
+
     return 0;
 }

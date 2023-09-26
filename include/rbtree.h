@@ -30,10 +30,13 @@ class RBTree {
 
         void put(const double& key, const double& value);
         double get(const double& key);
+        vector<pair<int, int>> scan(const int& key1, const int& key2);
+
 
 
     private:
         Node* search(Node* root, const double& key);
+        void inorderScan(vector<pair<int, int>>& sorted_KV, Node* root, const int& key1, const int& key2);
         void rotateLeft(Node* node);
         void rotateRight(Node* node);
         void selfBalance(Node* node);
