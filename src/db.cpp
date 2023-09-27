@@ -1,5 +1,7 @@
 #include <iostream>
 #include "rbtree.h"
+#include <fstream>
+#include <cassert>
 using namespace std;
 
 int main(int argc, char **argv) {
@@ -19,6 +21,18 @@ int main(int argc, char **argv) {
     } else {
         cout << "Not found Key: " << key << endl;
     }
+
+    string file_name = memtable.writeToSST();
+
+    // Testing purpose: read a file
+    cout << "Reading from " << file_name << " to test SST write..." << endl;
+    vector<pair<int64_t, int64_t>> test(5);
+    ifstream in(file_name, ios_base::binary);
+    assert(in.read((char*)&test[0], 5*sizeof(pair<int64_t, int64_t>)));
+    for (pair<int64_t, int64_t> i : test) {
+        cout << i.first << ", " << i.second << endl;
+    }
+    in.close();
 
     return 0;
 }
