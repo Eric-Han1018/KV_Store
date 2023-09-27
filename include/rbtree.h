@@ -41,7 +41,7 @@ class RBTree {
 
         void rotateLeft(Node* x);
         void rotateRight(Node* x);
-        void selfBalance(Node* node);
+        void insertFixup(Node* node);
         void insertNode(Node* node);
         void deleteNode(Node* node);
 };
