@@ -1,7 +1,11 @@
 #include <iostream>
+#include <unistd.h>
+#include <fcntl.h>
 #include "rbtree.h"
 #include <map>
 #include <list>
+#include <fstream>
+#include <ctime>
 using namespace std;
 
 // TODO: Insert a key-value pair into the memtable
@@ -29,27 +33,6 @@ double RBTree::get(const double& key) {
     }
 }
 
-// Scan the memtable to retrieve all KV-pairs in a key range in key order (key1 < key2)
-vector<pair<int, int>> RBTree::scan(const int& key1, const int& key2) {
-    vector<pair<int, int>> sorted_KV;
-
-    inorderScan(sorted_KV, this->root, key1, key2);
-
-    return sorted_KV;
-}
-
-// Helper function to recursively perform inorder scan
-void RBTree::inorderScan(vector<pair<int, int>>& sorted_KV, Node* root, const int& key1, const int& key2) {
-    if (root != nullptr) {
-        inorderScan(sorted_KV, root->left, key1, key2);
-        // Only include KV-pairs that are in the range
-        if (key1 <= root->key && root->key <= key2) {
-            sorted_KV.push_back({root->key, root->value});
-        }
-        inorderScan(sorted_KV, root->right, key1, key2);
-    }
-}
-
 Node* RBTree::search(Node* root, const double& key) {
     if (root == nullptr || root->key == key) {
         return root;
@@ -60,6 +43,49 @@ Node* RBTree::search(Node* root, const double& key) {
     } else {
         return search(root->right, key);
     }
+}
+
+// Scan the memtable to retrieve all KV-pairs in a key range in key order (key1 < key2)
+vector<pair<int64_t, int64_t>> RBTree::scan(const int64_t& key1, const int64_t& key2) {
+    // Check if key1 < key2
+    assert(key1 < key2);
+
+    vector<pair<int64_t, int64_t>> sorted_KV;
+
+    inorderScan(sorted_KV, this->root, key1, key2);
+
+    return sorted_KV;
+}
+
+// Helper function to recursively perform inorder scan
+void RBTree::inorderScan(vector<pair<int64_t, int64_t>>& sorted_KV, Node* root, const int64_t& key1, const int64_t& key2) {
+    if (root != nullptr) {
+        inorderScan(sorted_KV, root->left, key1, key2);
+        // Only include KV-pairs that are in the range
+        if (key1 <= root->key && root->key <= key2) {
+            sorted_KV.push_back({root->key, root->value});
+        }
+        inorderScan(sorted_KV, root->right, key1, key2);
+    }
+}
+
+// When memtable reaches its capacity, write it into an SST
+string RBTree::writeToSST() {
+    // Content in std::vector is stored contiguously
+    vector<pair<int64_t, int64_t>> sorted_KV = scan(numeric_limits<int64_t>::min(), numeric_limits<int64_t>::max());
+
+    // Create file name based on current time
+    // TODO: modify file name to a smarter way
+    string file_name = "./data/";
+    time_t current_time = time(0);
+    file_name.append(to_string(current_time)).append(".bytes");
+
+    // Write data structure to binary file
+    ofstream out(file_name, ios::out | ios_base::binary);
+    assert(out.write((char*)&sorted_KV[0], sorted_KV.size()*sizeof(pair<int64_t, int64_t>)));
+    out.close();
+
+    return file_name;
 }
 
 // TODO: Helper function to perform left rotation

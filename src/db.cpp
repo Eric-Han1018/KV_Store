@@ -1,5 +1,6 @@
 #include <iostream>
 #include "rbtree.h"
+#include <fstream>
 using namespace std;
 
 int main(int argc, char **argv) {
@@ -20,10 +21,17 @@ int main(int argc, char **argv) {
         cout << "Not found Key: " << key << endl;
     }
 
-    vector<pair<int, int>> sorted_KV = memtable.scan(3, 10);
-    for (pair<int, int> KV: sorted_KV) {
-        cout << KV.first << ", " << KV.second << endl;
+    string file_name = memtable.writeToSST();
+
+    // Testing purpose: read a file
+    cout << "Reading from " << file_name << " to test SST write..." << endl;
+    vector<pair<int64_t, int64_t>> test(5);
+    ifstream in(file_name, ios_base::binary);
+    assert(in.read((char*)&test[0], 5*sizeof(pair<int64_t, int64_t>)));
+    for (pair<int64_t, int64_t> i : test) {
+        cout << i.first << ", " << i.second << endl;
     }
+    in.close();
 
     return 0;
 }
