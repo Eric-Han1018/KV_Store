@@ -6,6 +6,7 @@
 #include <list>
 #include <fstream>
 #include <ctime>
+#include <cassert>
 using namespace std;
 
 // TODO: Insert a key-value pair into the memtable
