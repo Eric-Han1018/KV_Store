@@ -1,6 +1,7 @@
 #include <iostream>
 #include "rbtree.h"
 #include <fstream>
+#include <cassert>
 using namespace std;
 
 int main(int argc, char **argv) {
