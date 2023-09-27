@@ -1,4 +1,5 @@
 obj/
 bin/
-data/
+data/*
+!data/.gitkeep
 .vscode

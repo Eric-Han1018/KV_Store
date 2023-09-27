@@ -132,10 +132,6 @@ void RBTree::insertNode(Node* node) {
         y->right = node;
     }
 
-    // Initialize additional properties for the new node
-    // node->left = nullptr;
-    // node->right = nullptr;
-
     // Fix any Red-Black Tree violations that may have been introduced by the insertion
     selfBalance(node);
     curr_size++;
