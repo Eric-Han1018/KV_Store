@@ -11,14 +11,11 @@ using namespace std;
 
 // TODO: Insert a key-value pair into the memtable
 void RBTree::put(const double& key, const double& value) {
-    // Check if the key already exists and update its value (?)
+    // FUTURE-TODO: Check if the key already exists and update its value
 
     // Otherwise, insert a new node
     Node* node = new Node(key, value);
     insertNode(node);
-
-    // TODO: Implement the logic to handle rotation and capacity
-
 }
 
 // Retrieve a value by key
@@ -89,14 +86,87 @@ string RBTree::writeToSST() {
     return file_name;
 }
 
-// TODO: Helper function to perform left rotation
-void RBTree::rotateLeft(Node* node) {
-    // Implement left rotation here
+/*
+ * Helper function to perform left rotation
+ *
+ * Simple illustration for left rotation on 'x':
+ *
+ *    root                            root
+ *     /                               /
+ *    x                               y
+ *   /  \          ------>           / \
+ *  lx   y                          x  ry
+ *     /   \                       /  \
+ *    ly   ry                     lx  ly
+ *
+ *  After left rotation on 'x', 'y' become the new root of the subtree with left child as x,
+ *  and the previous left-child of 'y' will become the right-child of 'x'.
+ *  Note that, the left-child of x and right-child of y remain the same.
+ *  lx, ly, ry can be nullptr.
+ */
+void RBTree::rotateLeft(Node* x) {
+    /* Step 1: mark the right-child of x as y. */
+    Node *y = x->right;
+
+    /* Step 2: the left-child of y become the right-child of x, and update child's parent if not null */
+    x->right = y->left;
+    if (y->left != NULL) {
+        y->left->parent = x;
+    }
+
+    /* Step 3: set x and y parents accordingly */
+    y->parent = x->parent;
+    if (x->parent == NULL) {
+        root = y;               // x is root
+    } else if (x->parent->left == x) {
+        x->parent->left = y;    // x is the left child of its parent
+    } else {
+        x->parent->right = y;    // x is the right child of its parent
+    }
+
+    /* Step 4: lastly, set the left-child of y as x and set x's parent to y */
+    y->left = x;
+    x->parent = y;
 }
 
-// TODO: Helper function to perform right rotation
-void RBTree::rotateRight(Node* node) {
-    // Implement right rotation here
+/*
+ * Helper function to perform right rotation
+ *
+ * Simple illustration for right rotation on 'x':
+ *
+ *       root                             root
+ *        /                                /
+ *       x                                y                
+ *      /  \        -------->            /  \
+ *     y   rx                           ly   x 
+ *    / \                                   / \
+ *  ly  ry                                ry  rx
+ *
+ * Right is symmetrical to left rotation.
+ */
+void RBTree::rotateRight(Node* x) {
+    /* Step 1: mark the left-child of x as y. */
+    Node *y = x->left;
+
+    /* Step 2: the right-child of y become the left-child of x, and update child's parent if not null */
+    x->left = y->right;
+    if (y->right != NULL) {
+        y->right->parent = x;
+    }
+
+    /* Step 3: set x and y parents accordingly */
+    y->parent = x->parent;
+    if (x->parent == NULL) {
+        root = y;               // x is root
+    } else if (x->parent->left == x) {
+        x->parent->left = y;    // x is the left child of its parent
+    } else {
+        x->parent->right = y;    // x is the right child of its parent
+    }
+
+    /* Step 4: lastly, set the right-child of y as x and set x's parent to y */
+    y->right = x;
+    x->parent = y;
 }
 
 // TODO: Helper function to fix Red-Black Tree properties violations after insertion

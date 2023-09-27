@@ -5,7 +5,6 @@
 using namespace std;
 
 int main(int argc, char **argv) {
-    // TODO: Make more throughout tests
     RBTree memtable(5); // Example with memtable_size 5
 
     memtable.put(1, 10);
