@@ -2,6 +2,7 @@
 #include "rbtree.h"
 #include <fstream>
 #include <cassert>
+#include <iomanip>
 using namespace std;
 
 void inorderKey(Node* node, int indent=0)
