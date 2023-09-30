@@ -11,14 +11,11 @@ using namespace std;
 
 // TODO: Insert a key-value pair into the memtable
 void RBTree::put(const double& key, const double& value) {
-    // Check if the key already exists and update its value (?)
+    // FUTURE-TODO: Check if the key already exists and update its value
 
     // Otherwise, insert a new node
     Node* node = new Node(key, value);
     insertNode(node);
-
-    // TODO: Implement the logic to handle rotation and capacity
-
 }
 
 // Retrieve a value by key
@@ -89,22 +86,168 @@ string RBTree::writeToSST() {
     return file_name;
 }
 
-// TODO: Helper function to perform left rotation
-void RBTree::rotateLeft(Node* node) {
-    // Implement left rotation here
+/*
+ * Helper function to perform left rotation
+ *
+ * Simple illustration for left rotation on 'x':
+ *
+ *    root                            root
+ *     /                               /
+ *    x                               y
+ *   /  \          ------>           / \
+ *  lx   y                          x  ry
+ *     /   \                       /  \
+ *    ly   ry                     lx  ly
+ *
+ *  After left rotation on 'x', 'y' become the new root of the subtree with left child as x,
+ *  and the previous left-child of 'y' will become the right-child of 'x'.
+ *  Note that, the left-child of x and right-child of y remain the same.
+ *  lx, ly, ry can be nullptr.
+ */
+void RBTree::rotateLeft(Node* x) {
+    /* Step 1: mark the right-child of x as y. */
+    Node *y = x->right;
+
+    /* Step 2: the left-child of y become the right-child of x, and update child's parent if not null */
+    x->right = y->left;
+    if (y->left != NULL) {
+        y->left->parent = x;
+    }
+
+    /* Step 3: set x and y parents accordingly */
+    y->parent = x->parent;
+    if (x->parent == NULL) {
+        root = y;               // x is root
+    } else if (x->parent->left == x) {
+        x->parent->left = y;    // x is the left child of its parent
+    } else {
+        x->parent->right = y;    // x is the right child of its parent
+    }
+
+    /* Step 4: lastly, set the left-child of y as x and set x's parent to y */
+    y->left = x;
+    x->parent = y;
 }
 
-// TODO: Helper function to perform right rotation
-void RBTree::rotateRight(Node* node) {
-    // Implement right rotation here
+/*
+ * Helper function to perform right rotation
+ *
+ * Simple illustration for right rotation on 'x':
+ *
+ *       root                             root
+ *        /                                /
+ *       x                                y                
+ *      /  \        -------->            /  \
+ *     y   rx                           ly   x 
+ *    / \                                   / \
+ *  ly  ry                                ry  rx
+ *
+ * Right rotation is symmetrical to left rotation.
+ */
+void RBTree::rotateRight(Node* x) {
+    /* Step 1: mark the left-child of x as y. */
+    Node *y = x->left;
+
+    /* Step 2: the right-child of y become the left-child of x, and update child's parent if not null */
+    x->left = y->right;
+    if (y->right != NULL) {
+        y->right->parent = x;
+    }
+
+    /* Step 3: set x and y parents accordingly */
+    y->parent = x->parent;
+    if (x->parent == NULL) {
+        root = y;               // x is root
+    } else if (x->parent->left == x) {
+        x->parent->left = y;    // x is the left child of its parent
+    } else {
+        x->parent->right = y;    // x is the right child of its parent
+    }
+
+    /* Step 4: lastly, set the right-child of y as x and set x's parent to y */
+    y->right = x;
+    x->parent = y;
 }
 
-// TODO: Helper function to fix Red-Black Tree properties violations after insertion
-void RBTree::selfBalance(Node* node) {
-    // Implement fix for Red-Black Tree properties violations here
+/* 
+ * Fix Red-Black tree properties violations after insertion.
+ *
+ * For insertion, possible proporties violations are:
+ * 1. The root is black.
+ * 2. If a node is red, then both of its children are black.
+ * 
+ * Since we color newly inserted node to red, so property #1 will be violated 
+ * when we insert a root. We can fix it by simply color the root black.
+ * 
+ * Property #2 (if a node is red, then both its children are black) will violate 
+ * when the parent of the inserted node is red. Note that, in the case of violation
+ * property #2, the grandparent of the inserted node must be black. 
+ * 
+ * There can be 6 different cases:
+ * Cases 1-3 are when the parent of the node is a left child of its parent 
+ * Cases 4-6 are vice-versa, when the parent of the node is a right child of its parent
+ * (cases 4-6 are symmetric to cases 1-3)
+ * 
+ * More detail information can be found: https://www.codesdope.com/course/data-structures-red-black-trees-insertion/
+ * 
+ */
+void RBTree::insertFixup(Node* node) {
+    Node* y;
+    while (node->parent && node->parent->color == red) {
+        if (node->parent == node->parent->parent->left) {
+            /* Cases 1-3: the parent of the node is a left child of its parent */
+            y = node->parent->parent->right; // uncle of node
+            if (y && y->color == red) {
+                /* Case 1: When uncle of node is also red:
+                * shift the red color upward until there is no violation,
+                * the black height of any node won't be affected.
+                */
+                node->parent->color = black;
+                y->color = black;
+                node->parent->parent->color = red;
+                node = node->parent->parent;
+                continue;
+            } else {
+                /* Case 2 and 3: 
+                * the uncle of the node is black and the node is the right/left child. 
+                */
+                if (node->parent->right == node) {
+                    /* transform the case 2 into 3 by performing left rotation */
+                    node = node->parent; 
+                    rotateLeft(node);
+                }
+
+                /* color parent black and grandparent red, and right rotation on the grandparent. */
+                node->parent->color = black;
+                node->parent->parent->color = red;
+                rotateRight(node->parent->parent);
+            }
+        } else {
+            /* Cases 4-6: the parent of the node is a right child of its parent. 
+            * Code is symmetric as above.
+            */
+            y = node->parent->parent->left;
+            if (y && y->color == red) {
+                node->parent->color = black;
+                y->color = black;
+                node->parent->parent->color = red;
+                node = node->parent->parent;
+                continue;
+            } else {
+                if (node->parent->left == node) {
+                    node = node->parent; 
+                    rotateRight(node);
+                }
+                node->parent->color = black;
+                node->parent->parent->color = red;
+                rotateLeft(node->parent->parent);
+            }
+        }
+    }
+    root->color = black;
 }
 
-// Helper function to insert a node into the Red-Black Tree
+// Insert a node into the Red-Black Tree
 void RBTree::insertNode(Node* node) {
     // Perform a standard Binary Search Tree insertion
     Node* y = nullptr;
@@ -133,7 +276,8 @@ void RBTree::insertNode(Node* node) {
     }
 
     // Fix any Red-Black Tree violations that may have been introduced by the insertion
-    selfBalance(node);
+    node->color = red;
+    insertFixup(node);
     curr_size++;
     cout << "Insert key: " << node->key << " value: " << node->value << endl;
 }

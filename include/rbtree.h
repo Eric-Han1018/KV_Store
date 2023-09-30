@@ -39,9 +39,9 @@ class RBTree {
         Node* search(Node* root, const double& key);
         void inorderScan(vector<pair<int64_t, int64_t>>& sorted_KV, Node* root, const int64_t& key1, const int64_t& key2);
 
-        void rotateLeft(Node* node);
-        void rotateRight(Node* node);
-        void selfBalance(Node* node);
+        void rotateLeft(Node* x);
+        void rotateRight(Node* x);
+        void insertFixup(Node* node);
         void insertNode(Node* node);
         void deleteNode(Node* node);
 };
