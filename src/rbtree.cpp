@@ -11,7 +11,7 @@
 using namespace std;
 
 // TODO: Insert a key-value pair into the memtable
-void RBTree::put(const double& key, const double& value) {
+void RBTree::put(const int64_t& key, const int64_t& value) {
     // FUTURE-TODO: Check if the key already exists and update its value
 
     // Otherwise, insert a new node
@@ -20,19 +20,19 @@ void RBTree::put(const double& key, const double& value) {
 }
 
 // Retrieve a value by key
-double RBTree::get(const double& key) {
+int64_t RBTree::get(const int64_t& key) {
     // Search for the key in the Red-Black Tree
     Node* node = search(root, key);
 
     if (node == nullptr) {
-        cout << "Not found Key: " << key << endl;
+        cout << "Not found Key: " << key << "in memtable. Now searching SSTs" << endl;
         return -1; // for now
     } else {
         return node->value;
     }
 }
 
-Node* RBTree::search(Node* root, const double& key) {
+Node* RBTree::search(Node* root, const int64_t& key) {
     if (root == nullptr || root->key == key) {
         return root;
     }

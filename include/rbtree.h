@@ -30,13 +30,13 @@ class RBTree {
             // FIXME: remember to implement
         }
 
-        void put(const double& key, const double& value);
-        double get(const double& key);
+        void put(const int64_t& key, const int64_t& value);
+        int64_t get(const int64_t& key);
         vector<pair<int64_t, int64_t>> scan(const int64_t& key1, const int64_t& key2);
         string writeToSST();
 
     private:
-        Node* search(Node* root, const double& key);
+        Node* search(Node* root, const int64_t& key);
         void inorderScan(vector<pair<int64_t, int64_t>>& sorted_KV, Node* root, const int64_t& key1, const int64_t& key2);
 
         void rotateLeft(Node* x);
