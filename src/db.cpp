@@ -2,6 +2,8 @@
 #include "rbtree.h"
 #include <fstream>
 #include <cassert>
+#include <fcntl.h>
+#include <unistd.h>
 using namespace std;
 
 void inorderKey(Node* node, int indent=0)
@@ -55,14 +57,16 @@ int main(int argc, char **argv) {
     string file_name = memtable.writeToSST();
 
     // Testing purpose: read a file
+    vector<pair<int64_t, int64_t>> test_read(6);
     cout << "Reading from " << file_name << " to test SST write..." << endl;
-    vector<pair<int64_t, int64_t>> test(6);
-    ifstream in(file_name, ios_base::binary);
-    assert(in.read((char*)&test[0], 6*sizeof(pair<int64_t, int64_t>)));
-    for (pair<int64_t, int64_t> i : test) {
+    int fd_1 = open(file_name.c_str(), O_RDONLY);
+    assert(fd_1 != -1);
+    int test = pread(fd_1, (char*)&test_read[0], 6*sizeof(pair<int64_t, int64_t>), 0);
+    assert(test != -1);
+    for (pair<int64_t, int64_t> i : test_read) {
         cout << i.first << ", " << i.second << endl;
     }
-    in.close();
+    close(fd_1);
 
     return 0;
 }

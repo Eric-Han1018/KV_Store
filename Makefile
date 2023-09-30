@@ -4,6 +4,7 @@
 SRC_DIR := src
 OBJ_DIR := obj
 BIN_DIR := bin
+DATA_DIR := data
 
 EXE := $(BIN_DIR)/db
 SRC := $(wildcard $(SRC_DIR)/*.cpp)
@@ -41,6 +42,6 @@ $(BIN_DIR) $(OBJ_DIR):
 	mkdir -p $@
 
 clean:
-	@$(RM) -rv $(EXE) $(OBJ_DIR)
+	@$(RM) -rv $(EXE) $(OBJ_DIR) $(DATA_DIR)/*
 
 -include $(OBJ:.o=.d)

@@ -79,9 +79,11 @@ string RBTree::writeToSST() {
     file_name.append(to_string(current_time)).append(".bytes");
 
     // Write data structure to binary file
-    ofstream out(file_name, ios::out | ios_base::binary);
-    assert(out.write((char*)&sorted_KV[0], sorted_KV.size()*sizeof(pair<int64_t, int64_t>)));
-    out.close();
+    int fd = open(file_name.c_str(), O_WRONLY | O_CREAT | O_SYNC, 0777);
+    assert(fd!=-1);
+    int test = pwrite(fd, (char*)&sorted_KV[0], sorted_KV.size()*sizeof(pair<int64_t, int64_t>), 0);
+    assert(test!=-1);
+    assert(close(fd)==0);
 
     return file_name;
 }
