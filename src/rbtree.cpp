@@ -10,6 +10,7 @@
 #include <limits>
 #include <string>
 #include <sstream>
+#include <algorithm>
 using namespace std;
 
 // TODO: Insert a key-value pair into the memtable
@@ -101,7 +102,7 @@ int64_t RBTree::search_SST(const fs::path& file_path, const int64_t& key) {
     int high = num_elements - 1;
     int mid;
 
-    // Open the SST file 
+    // Open the SST file
     int fd = open(file_path.c_str(), O_RDONLY);
     assert(fd != -1);
 
@@ -128,39 +129,108 @@ int64_t RBTree::search_SST(const fs::path& file_path, const int64_t& key) {
     return -1;
 }
 
-// Scan the memtable to retrieve all KV-pairs in a key range in key order (key1 < key2)
+// Scan the memtable and SST to retrieve all KV-pairs in a key range in key order (key1 < key2)
 vector<pair<int64_t, int64_t>> RBTree::scan(const int64_t& key1, const int64_t& key2) {
     // Check if key1 < key2
     assert(key1 < key2);
 
     vector<pair<int64_t, int64_t>> sorted_KV;
+    size_t len;
 
-    inorderScan(sorted_KV, root, key1, key2);
+    // Scan the memtable
+    scan_memtable(sorted_KV, root, key1, key2);
+
+    // Scan each SST
+    for (auto& file_path : *sorted_dir) {
+        cout << "Scanning file: " << file_path << "..." << endl;
+        // Skip if the keys is not between min_key and max_key
+        int64_t min_key, max_key;
+        parse_SST_name(file_path, min_key, max_key);
+        if (key2 < min_key || key1 > max_key) {
+            cout << "key is not in range of: " << file_path << endl;
+            continue;
+        }
+
+        // Store current size of array for merging
+        len = sorted_KV.size();
+
+        // Scan the SST
+        scan_SST(sorted_KV, file_path, key1, key2);
+
+        // Merge into one sorted array
+        // FIXME: ask Prof if merge() is allowed
+        // FIXME: is using merge efficient?
+        inplace_merge(sorted_KV.begin(), sorted_KV.begin()+len, sorted_KV.end());
+    }
 
     return sorted_KV;
 }
 
 // Scan SST to get keys within range
-vector<pair<int64_t, int64_t>> RBTree::scan_SST(const string& file_path, const int64_t& key1, const int64_t& key2) {
-    return vector<pair<int64_t, int64_t>>();
+// The implementation is similar with search_SST()
+void RBTree::scan_SST(vector<pair<int64_t, int64_t>>& sorted_KV, const string& file_path, const int64_t& key1, const int64_t& key2) {
+    auto file_size = fs::file_size(file_path);
+    int num_elements = file_size / constants::PAIR_SIZE;
+
+    // Variables used in binary search
+    pair<int64_t, int64_t> cur;
+    int low = 0;
+    int high = num_elements - 1;
+    int mid;
+
+    // Open the SST file
+    int fd = open(file_path.c_str(), O_RDONLY);
+    assert(fd != -1);
+
+
+    // Binary search to find the first element >= key1
+    while (low != high) {
+        mid = (low + high) / 2;
+        // Do one I/O at each hop
+        // FIXME: need to confirm if this is what required
+        int ret = pread(fd, (char*)&cur, constants::PAIR_SIZE, mid*constants::PAIR_SIZE);
+        assert(ret == constants::PAIR_SIZE);
+
+        if (cur.first < key1) {
+            low = mid + 1; // target can only in right half
+        } else {
+            high = mid; // target can at mid or in left half
+        }
+    }
+
+    // Low and high both points to what we are looking for
+    for (auto i=low; i < num_elements ; ++i) {
+        // Iterate each element and push to vector
+        int ret = pread(fd, (char*)&cur, constants::PAIR_SIZE, i*constants::PAIR_SIZE);
+        assert(ret == constants::PAIR_SIZE);
+
+        if (cur.first <= key2) {
+            sorted_KV.push_back(cur);
+        } else {
+            break; // until meeting the first value out of range
+        }
+    }
+
+    close(fd);
 }
 
 // Helper function to recursively perform inorder scan
-void RBTree::inorderScan(vector<pair<int64_t, int64_t>>& sorted_KV, Node* root, const int64_t& key1, const int64_t& key2) {
+void RBTree::scan_memtable(vector<pair<int64_t, int64_t>>& sorted_KV, Node* root, const int64_t& key1, const int64_t& key2) {
     if (root != nullptr) {
-        inorderScan(sorted_KV, root->left, key1, key2);
+        scan_memtable(sorted_KV, root->left, key1, key2);
         // Only include KV-pairs that are in the range
         if (key1 <= root->key && root->key <= key2) {
             sorted_KV.push_back({root->key, root->value});
         }
-        inorderScan(sorted_KV, root->right, key1, key2);
+        scan_memtable(sorted_KV, root->right, key1, key2);
     }
 }
 
 // When memtable reaches its capacity, write it into an SST
 string RBTree::writeToSST() {
     // Content in std::vector is stored contiguously
-    vector<pair<int64_t, int64_t>> sorted_KV = scan(numeric_limits<int64_t>::min(), numeric_limits<int64_t>::max());
+    vector<pair<int64_t, int64_t>> sorted_KV;
+    scan_memtable(sorted_KV, root, numeric_limits<int64_t>::min(), numeric_limits<int64_t>::max());
 
     // Create file name based on current time
     // TODO: modify file name to a smarter way

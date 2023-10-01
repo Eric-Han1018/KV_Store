@@ -52,6 +52,7 @@ class RBTree {
             max_key = numeric_limits<int64_t>::min();
 
             // Iterate the data/ folder to get a sorted list of files
+            // FIXME: ask Prof if set is allowed (as set<> is implemented using rbtree)
             set<fs::path> sorted_dir_set;
             for (auto& file_path : fs::directory_iterator(constants::DATA_FOLDER)) {
                 sorted_dir_set.insert(file_path);
@@ -77,8 +78,8 @@ class RBTree {
         Node* search(Node* root, const int64_t& key);
         int64_t search_SSTs(const int64_t& key);
         int64_t search_SST(const fs::path& file_path, const int64_t& key);
-        vector<pair<int64_t, int64_t>> scan_SST(const string& file_path, const int64_t& key1, const int64_t& key2);
-        void inorderScan(vector<pair<int64_t, int64_t>>& sorted_KV, Node* root, const int64_t& key1, const int64_t& key2);
+        void scan_SST(vector<pair<int64_t, int64_t>>& sorted_KV, const string& file_path, const int64_t& key1, const int64_t& key2);
+        void scan_memtable(vector<pair<int64_t, int64_t>>& sorted_KV, Node* root, const int64_t& key1, const int64_t& key2);
 
         void rotateLeft(Node* x);
         void rotateRight(Node* x);

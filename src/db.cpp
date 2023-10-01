@@ -76,5 +76,12 @@ int main(int argc, char **argv) {
         cout << "Not found Key: " << key << endl;
     }
 
+    // Testing memtable and SST scan
+    cout << "\nTesting scan() from memtable and SST..." << endl;
+    vector<pair<int64_t, int64_t>> scan_result = memtable.scan(-10, 17);
+    for (auto i : scan_result) {
+        cout << i.first << "; " << i.second << endl;
+    }
+
     return 0;
 }
