@@ -4,7 +4,6 @@
 #include "rbtree.h"
 #include <map>
 #include <list>
-#include <set>
 #include <fstream>
 #include <ctime>
 #include <cassert>
@@ -57,13 +56,8 @@ Node* RBTree::search(Node* root, const int64_t& key) {
 
 // Search matching key in SSTs in the order of youngest to oldest
 int64_t RBTree::search_SSTs(const int64_t& key) {
-    // Iterate the first time to get a sorted list of files
-    set<fs::path> sorted_dir;
-    for (auto& file_path : fs::directory_iterator(constants::DATA_FOLDER)) {
-        sorted_dir.insert(file_path);
-    }
     // Iterate the second time to read each file in alphabetical order
-    for (auto& file_path : sorted_dir) {
+    for (auto& file_path : *sorted_dir) {
         cout << "Searching in file: " << file_path << "..." << endl;
 
         // Skip if the key is not between min_key and max_key
@@ -146,6 +140,11 @@ vector<pair<int64_t, int64_t>> RBTree::scan(const int64_t& key1, const int64_t& 
     return sorted_KV;
 }
 
+// Scan SST to get keys within range
+vector<pair<int64_t, int64_t>> RBTree::scan_SST(const string& file_path, const int64_t& key1, const int64_t& key2) {
+    return vector<pair<int64_t, int64_t>>();
+}
+
 // Helper function to recursively perform inorder scan
 void RBTree::inorderScan(vector<pair<int64_t, int64_t>>& sorted_KV, Node* root, const int64_t& key1, const int64_t& key2) {
     if (root != nullptr) {
@@ -175,6 +174,9 @@ string RBTree::writeToSST() {
     int test = pwrite(fd, (char*)&sorted_KV[0], sorted_KV.size()*constants::PAIR_SIZE, 0);
     assert(test!=-1);
     close(fd);
+
+    // Add to the maintained directory list
+    sorted_dir->push_back(file_name);
 
     // Clear the memtable
     clear_tree();
