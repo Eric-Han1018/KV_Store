@@ -41,9 +41,13 @@ class RBTree {
         Node* root;
         size_t memtable_size;   // Maximum capacity
         size_t curr_size;       // Current size
+        int64_t min_key;        // Minimum key stored in the tree
+        int64_t max_key;        // Maximum key stored in the tree
 
         RBTree(size_t capacity, Node* root=nullptr): root(root), memtable_size{capacity} {
             curr_size = 0;
+            min_key = numeric_limits<int64_t>::max();
+            max_key = numeric_limits<int64_t>::min();
         }
         ~RBTree() {
             cout << "Deleting tree..." << endl;
@@ -67,4 +71,7 @@ class RBTree {
         void insertFixup(Node* node);
         void insertNode(Node* node);
         void deleteNode(Node* node);
+
+        void clear_tree();
+        void parse_SST_name(string file_name, int64_t& min_key, int64_t& max_key);
 };

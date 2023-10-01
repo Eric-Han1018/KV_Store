@@ -59,6 +59,12 @@ int main(int argc, char **argv) {
 
     // Write memtable to SST
     cout << "\nTesting senario of reaching tree capacity..." << endl;
+    memtable.put(11, 10);
+    memtable.put(15, 50);
+    memtable.put(12, 20);
+    memtable.put(14, 40);
+    memtable.put(13, 30);
+    memtable.put(18, 80);
     memtable.put(-1, 80);
 
     // Testing SST search

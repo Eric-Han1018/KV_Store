@@ -9,6 +9,8 @@
 #include <ctime>
 #include <cassert>
 #include <limits>
+#include <string>
+#include <sstream>
 using namespace std;
 
 // TODO: Insert a key-value pair into the memtable
@@ -63,12 +65,35 @@ int64_t RBTree::search_SSTs(const int64_t& key) {
     // Iterate the second time to read each file in alphabetical order
     for (auto& file_path : sorted_dir) {
         cout << "Searching in file: " << file_path << "..." << endl;
+
+        // Skip if the key is not between min_key and max_key
+        int64_t min_key, max_key;
+        parse_SST_name(file_path, min_key, max_key);
+        if (key < min_key || key > max_key) {
+            cout << "key is not in range of: " << file_path << endl;
+            continue;
+        }
+
         int64_t value = search_SST(file_path, key);
         if (value != -1) return value;
         cout << "Not found key: " << key << " in file: " << file_path << endl;
     }
     
     return -1;
+}
+
+// Get min_key and max_key from a SST file's name
+void RBTree::parse_SST_name(string file_name, int64_t& min_key, int64_t& max_key) {
+    vector<string> parsed_name(4);
+    string segment;
+    stringstream name_stream(file_name);
+    // Split by "_" and "."
+    int first = file_name.find("_");
+    int last = file_name.find_last_of("_");
+    int dot = file_name.find_last_of(".");
+
+    min_key = strtoll(file_name.substr(first+1, last - first - 1).c_str(), nullptr, 10);
+    max_key = strtoll(file_name.substr(last+1, dot - last - 1).c_str(), nullptr, 10);
 }
 
 // Helper function to search the key in a SST file
@@ -142,7 +167,7 @@ string RBTree::writeToSST() {
     // TODO: modify file name to a smarter way
     string file_name = constants::DATA_FOLDER;
     time_t current_time = time(0);
-    file_name.append(to_string(current_time)).append(".bytes");
+    file_name.append(to_string(current_time)).append("_").append(to_string(min_key)).append("_").append(to_string(max_key)).append(".bytes");
 
     // Write data structure to binary file
     int fd = open(file_name.c_str(), O_WRONLY | O_CREAT | O_SYNC, 0777);
@@ -152,9 +177,7 @@ string RBTree::writeToSST() {
     close(fd);
 
     // Clear the memtable
-    delete root;
-    root = nullptr;
-    curr_size = 0;
+    clear_tree();
 
     return file_name;
 }
@@ -351,8 +374,22 @@ void RBTree::insertNode(Node* node) {
     // Fix any Red-Black Tree violations that may have been introduced by the insertion
     node->color = red;
     insertFixup(node);
+
+    // Update tree metadata
     curr_size++;
+    if (node->key < min_key) min_key = node->key;
+    else if (node->key > max_key) max_key = node->key;
+
     cout << "Insert key: " << node->key << " value: " << node->value << endl;
+}
+
+// Clear all the nodes in the tree
+void RBTree::clear_tree() {
+    delete root;
+    root = nullptr;
+    curr_size = 0;
+    min_key = numeric_limits<int64_t>::max();
+    max_key = numeric_limits<int64_t>::min();
 }
 
 // TODO: Helper function to delete a node from the Red-Black Tree
