@@ -42,6 +42,13 @@ int main(int argc, char **argv) {
     memtable.put(3, 30);
     memtable.put(8, 80);
 
+    cout << "\ntree-graph for key:" << endl;
+    inorderKey(memtable.root);
+    cout << "\ntree-graph for color - 0 black, 1 red:" << endl;
+    inorderColor(memtable.root);
+
+    // Search for key in the memtable
+    cout << "\nTesting get() in memtable..." << endl;
     double key = 3;
     double value = memtable.get(key);
     if (value != -1) {
@@ -50,24 +57,18 @@ int main(int argc, char **argv) {
         cout << "Not found Key: " << key << endl;
     }
 
-    cout << "tree-graph for key:" << endl;
-    inorderKey(memtable.root);
-    cout << "tree-graph for color - 0 black, 1 red:" << endl;
-    inorderColor(memtable.root);
+    // Write memtable to SST
+    cout << "\nTesting senario of reaching tree capacity..." << endl;
+    memtable.put(-1, 80);
 
-    string file_name = memtable.writeToSST();
-
-    // Testing purpose: read a file
-    vector<pair<int64_t, int64_t>> test_read(6);
-    cout << "Reading from " << file_name << " to test SST write..." << endl;
-    int fd_1 = open(file_name.c_str(), O_RDONLY);
-    assert(fd_1 != -1);
-    int test = pread(fd_1, (char*)&test_read[0], 6*sizeof(pair<int64_t, int64_t>), 0);
-    assert(test != -1);
-    for (pair<int64_t, int64_t> i : test_read) {
-        cout << i.first << ", " << i.second << endl;
+    // Testing SST search
+    cout << "\nTesting get() from SST..." << endl;
+    value = memtable.get(key);
+    if (value != -1) {
+        cout << "Found {Key: " << key << ", Value: " << value << "}" << endl;
+    } else {
+        cout << "Not found Key: " << key << endl;
     }
-    close(fd_1);
 
     return 0;
 }

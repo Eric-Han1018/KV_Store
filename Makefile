@@ -15,7 +15,7 @@ CC := g++
 # -I	adds include directory of header files
 # -MMD  outputs a Makefile snippet for each compiled .cpp and save to a .d file 
 # -MP   outputs a non-dependent target for each header file
-CPPFLAGS := -Iinclude -MMD -MP -std=c++11
+CPPFLAGS := -Iinclude -MMD -MP -std=c++17
 # Compiler Flags:
 #  -g    adds debugging information to the executable file
 #  -o2 / -o3 to enable optimization
@@ -40,8 +40,9 @@ $(OBJ_DIR)/%.o: $(SRC_DIR)/%.cpp | $(OBJ_DIR)
 
 $(BIN_DIR) $(OBJ_DIR):
 	mkdir -p $@
+	mkdir -p $(DATA_DIR)
 
 clean:
-	@$(RM) -rv $(EXE) $(OBJ_DIR) $(DATA_DIR)/*
+	@$(RM) -rv $(EXE) $(OBJ_DIR) $(DATA_DIR)
 
 -include $(OBJ:.o=.d)
