@@ -239,6 +239,7 @@ string RBTree::writeToSST() {
     file_name.append(to_string(current_time)).append("_").append(to_string(min_key)).append("_").append(to_string(max_key)).append(".bytes");
 
     // Write data structure to binary file
+    // FIXME: do we need O_DIRECT for now?
     int fd = open(file_name.c_str(), O_WRONLY | O_CREAT | O_SYNC, 0777);
     assert(fd!=-1);
     int test = pwrite(fd, (char*)&sorted_KV[0], sorted_KV.size()*constants::PAIR_SIZE, 0);
