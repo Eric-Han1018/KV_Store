@@ -2,6 +2,7 @@
 #include <iostream>
 #include <vector>
 #include <filesystem>
+#include <set>
 using namespace std;
 namespace fs = std::filesystem;
 
@@ -39,14 +40,31 @@ class Node {
 class RBTree {
     public:
         Node* root;
-        size_t memtable_size;   // Maximum capacity
-        size_t curr_size;       // Current size
+        size_t memtable_size;     // Maximum capacity
+        size_t curr_size;         // Current size
+        int64_t min_key;          // Minimum key stored in the tree
+        int64_t max_key;          // Maximum key stored in the tree
+        vector<fs::path>* sorted_dir; // The sorted list of all SST files
 
         RBTree(size_t capacity, Node* root=nullptr): root(root), memtable_size{capacity} {
             curr_size = 0;
+            min_key = numeric_limits<int64_t>::max();
+            max_key = numeric_limits<int64_t>::min();
+
+            // Iterate the data/ folder to get a sorted list of files
+            // FIXME: ask Prof if set is allowed (as set<> is implemented using rbtree)
+            set<fs::path> sorted_dir_set;
+            for (auto& file_path : fs::directory_iterator(constants::DATA_FOLDER)) {
+                sorted_dir_set.insert(file_path);
+            }
+
+            // Convert Set to Vector (faster for pushing back in future)
+            sorted_dir = new vector<fs::path>(sorted_dir_set.begin(), sorted_dir_set.end());
+
         }
         ~RBTree() {
             cout << "Deleting tree..." << endl;
+            delete sorted_dir;
             delete root;
             root = nullptr;
         }
@@ -60,11 +78,15 @@ class RBTree {
         Node* search(Node* root, const int64_t& key);
         int64_t search_SSTs(const int64_t& key);
         int64_t search_SST(const fs::path& file_path, const int64_t& key);
-        void inorderScan(vector<pair<int64_t, int64_t>>& sorted_KV, Node* root, const int64_t& key1, const int64_t& key2);
+        void scan_SST(vector<pair<int64_t, int64_t>>& sorted_KV, const string& file_path, const int64_t& key1, const int64_t& key2);
+        void scan_memtable(vector<pair<int64_t, int64_t>>& sorted_KV, Node* root, const int64_t& key1, const int64_t& key2);
 
         void rotateLeft(Node* x);
         void rotateRight(Node* x);
         void insertFixup(Node* node);
         void insertNode(Node* node);
         void deleteNode(Node* node);
+
+        void clear_tree();
+        void parse_SST_name(string file_name, int64_t& min_key, int64_t& max_key);
 };

@@ -59,6 +59,12 @@ int main(int argc, char **argv) {
 
     // Write memtable to SST
     cout << "\nTesting senario of reaching tree capacity..." << endl;
+    memtable.put(11, 10);
+    memtable.put(15, 50);
+    memtable.put(12, 20);
+    memtable.put(14, 40);
+    memtable.put(13, 30);
+    memtable.put(18, 80);
     memtable.put(-1, 80);
 
     // Testing SST search
@@ -68,6 +74,13 @@ int main(int argc, char **argv) {
         cout << "Found {Key: " << key << ", Value: " << value << "}" << endl;
     } else {
         cout << "Not found Key: " << key << endl;
+    }
+
+    // Testing memtable and SST scan
+    cout << "\nTesting scan() from memtable and SST..." << endl;
+    vector<pair<int64_t, int64_t>> scan_result = memtable.scan(-10, 17);
+    for (auto i : scan_result) {
+        cout << i.first << "; " << i.second << endl;
     }
 
     return 0;
