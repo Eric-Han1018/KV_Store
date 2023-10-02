@@ -4,6 +4,7 @@
 #include "rbtree.h"
 #include <map>
 #include <list>
+#include <set>
 #include <fstream>
 #include <ctime>
 #include <cassert>
@@ -11,8 +12,15 @@
 using namespace std;
 
 // TODO: Insert a key-value pair into the memtable
-void RBTree::put(const double& key, const double& value) {
+void RBTree::put(const int64_t& key, const int64_t& value) {
     // FUTURE-TODO: Check if the key already exists and update its value
+
+    // Check if current tree size reaches maximum, and write to SST
+    if (curr_size >= memtable_size) {
+        string file_path = writeToSST();
+        cout << "Memtable capacity reaches maximum. Data has been " <<
+                "saved to: " << file_path << endl;
+    }
 
     // Otherwise, insert a new node
     Node* node = new Node(key, value);
@@ -20,19 +28,20 @@ void RBTree::put(const double& key, const double& value) {
 }
 
 // Retrieve a value by key
-double RBTree::get(const double& key) {
+int64_t RBTree::get(const int64_t& key) {
     // Search for the key in the Red-Black Tree
     Node* node = search(root, key);
 
     if (node == nullptr) {
-        cout << "Not found Key: " << key << endl;
-        return -1; // for now
+        cout << "Not found Key: " << key << " in memtable. Now searching SSTs..." << endl;
+        return search_SSTs(key);
     } else {
         return node->value;
     }
 }
 
-Node* RBTree::search(Node* root, const double& key) {
+// Search matching key in memtable
+Node* RBTree::search(Node* root, const int64_t& key) {
     if (root == nullptr || root->key == key) {
         return root;
     }
@@ -44,6 +53,62 @@ Node* RBTree::search(Node* root, const double& key) {
     }
 }
 
+// Search matching key in SSTs in the order of youngest to oldest
+int64_t RBTree::search_SSTs(const int64_t& key) {
+    // Iterate the first time to get a sorted list of files
+    set<fs::path> sorted_dir;
+    for (auto& file_path : fs::directory_iterator(constants::DATA_FOLDER)) {
+        sorted_dir.insert(file_path);
+    }
+    // Iterate the second time to read each file in alphabetical order
+    for (auto& file_path : sorted_dir) {
+        cout << "Searching in file: " << file_path << "..." << endl;
+        int64_t value = search_SST(file_path, key);
+        if (value != -1) return value;
+        cout << "Not found key: " << key << " in file: " << file_path << endl;
+    }
+    
+    return -1;
+}
+
+// Helper function to search the key in a SST file
+int64_t RBTree::search_SST(const fs::path& file_path, const int64_t& key) {
+    auto file_size = fs::file_size(file_path);
+    auto num_elements = file_size / constants::PAIR_SIZE;
+
+    // Variables used in binary search
+    pair<int64_t, int64_t> cur;
+    int low = 0;
+    int high = num_elements - 1;
+    int mid;
+
+    // Open the SST file 
+    int fd = open(file_path.c_str(), O_RDONLY);
+    assert(fd != -1);
+
+
+    // Binary search
+    while (low <= high) {
+        mid = (low + high) / 2;
+        // Do one I/O at each hop
+        // FIXME: need to confirm if this is what required
+        int ret = pread(fd, (char*)&cur, constants::PAIR_SIZE, mid*constants::PAIR_SIZE);
+        assert(ret == constants::PAIR_SIZE);
+
+        if (cur.first == key) {
+            return cur.second;
+        } else if (cur.first > key) {
+            high = mid - 1;
+        } else {
+            low = mid + 1;
+        }
+    }
+
+    close(fd);
+
+    return -1;
+}
+
 // Scan the memtable to retrieve all KV-pairs in a key range in key order (key1 < key2)
 vector<pair<int64_t, int64_t>> RBTree::scan(const int64_t& key1, const int64_t& key2) {
     // Check if key1 < key2
@@ -51,7 +116,7 @@ vector<pair<int64_t, int64_t>> RBTree::scan(const int64_t& key1, const int64_t& 
 
     vector<pair<int64_t, int64_t>> sorted_KV;
 
-    inorderScan(sorted_KV, this->root, key1, key2);
+    inorderScan(sorted_KV, root, key1, key2);
 
     return sorted_KV;
 }
@@ -75,14 +140,21 @@ string RBTree::writeToSST() {
 
     // Create file name based on current time
     // TODO: modify file name to a smarter way
-    string file_name = "./data/";
+    string file_name = constants::DATA_FOLDER;
     time_t current_time = time(0);
     file_name.append(to_string(current_time)).append(".bytes");
 
     // Write data structure to binary file
-    ofstream out(file_name, ios::out | ios_base::binary);
-    assert(out.write((char*)&sorted_KV[0], sorted_KV.size()*sizeof(pair<int64_t, int64_t>)));
-    out.close();
+    int fd = open(file_name.c_str(), O_WRONLY | O_CREAT | O_SYNC, 0777);
+    assert(fd!=-1);
+    int test = pwrite(fd, (char*)&sorted_KV[0], sorted_KV.size()*constants::PAIR_SIZE, 0);
+    assert(test!=-1);
+    close(fd);
+
+    // Clear the memtable
+    delete root;
+    root = nullptr;
+    curr_size = 0;
 
     return file_name;
 }
