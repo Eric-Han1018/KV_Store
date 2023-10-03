@@ -6,7 +6,7 @@ OBJ_DIR := obj
 BIN_DIR := bin
 DATA_DIR := data
 
-EXE := $(BIN_DIR)/db
+EXE := $(BIN_DIR)/unittest
 SRC := $(wildcard $(SRC_DIR)/*.cpp)
 OBJ := $(SRC:$(SRC_DIR)/%.cpp=$(OBJ_DIR)/%.o)
 
@@ -44,5 +44,8 @@ $(BIN_DIR) $(OBJ_DIR):
 
 clean:
 	@$(RM) -rv $(EXE) $(OBJ_DIR) $(DATA_DIR)
+
+test: $(EXE)
+	./$(EXE)
 
 -include $(OBJ:.o=.d)

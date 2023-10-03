@@ -31,7 +31,8 @@ void inorderColor(Node* node, int indent=0)
     }
 }
 
-int main(int argc, char **argv) {
+void unit_test1()
+{
     RBTree memtable(6); // Example with memtable_size 6
 
     // random insert
@@ -69,6 +70,9 @@ int main(int argc, char **argv) {
     } else {
         cout << "Not found Key: " << key << endl;
     }
+}
 
+int main(int argc, char **argv) {
+    unit_test1();
     return 0;
 }
