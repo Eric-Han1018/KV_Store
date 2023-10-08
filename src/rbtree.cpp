@@ -234,8 +234,9 @@ string RBTree::writeToSST() {
     // Create file name based on current time
     // TODO: modify file name to a smarter way
     string file_name = constants::DATA_FOLDER;
-    clock_t current_time = clock();
-    file_name.append(to_string(current_time)).append("_").append(to_string(min_key)).append("_").append(to_string(max_key)).append(".bytes");
+    time_t current_time = time(0);
+    clock_t current_clock = clock(); // In case there is a tie in time()
+    file_name.append(to_string(current_time)).append(to_string(current_clock)).append("_").append(to_string(min_key)).append("_").append(to_string(max_key)).append(".bytes");
 
     // Write data structure to binary file
     // FIXME: do we need O_DIRECT for now?
