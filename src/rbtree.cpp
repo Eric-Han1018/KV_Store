@@ -10,7 +10,6 @@
 #include <limits>
 #include <string>
 #include <sstream>
-#include <algorithm>
 using namespace std;
 
 // TODO: Insert a key-value pair into the memtable

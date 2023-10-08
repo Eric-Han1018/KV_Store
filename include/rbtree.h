@@ -3,6 +3,7 @@
 #include <vector>
 #include <filesystem>
 #include <set>
+#include <algorithm>
 using namespace std;
 namespace fs = std::filesystem;
 
