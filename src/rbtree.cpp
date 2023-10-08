@@ -29,7 +29,7 @@ void RBTree::put(const int64_t& key, const int64_t& value) {
 }
 
 // Retrieve a value by key
-int64_t RBTree::get(const int64_t& key) {
+const int64_t* RBTree::get(const int64_t& key) {
     // Search for the key in the Red-Black Tree
     Node* node = search(root, key);
 
@@ -37,7 +37,7 @@ int64_t RBTree::get(const int64_t& key) {
         cout << "Not found Key: " << key << " in memtable. Now searching SSTs..." << endl;
         return search_SSTs(key);
     } else {
-        return node->value;
+        return new int64_t(node->value);
     }
 }
 
@@ -55,7 +55,7 @@ Node* RBTree::search(Node* root, const int64_t& key) {
 }
 
 // Search matching key in SSTs in the order of youngest to oldest
-int64_t RBTree::search_SSTs(const int64_t& key) {
+const int64_t* RBTree::search_SSTs(const int64_t& key) {
     // Iterate to read each file in descending order (new->old)
     for (auto file_path_itr = sorted_dir.rbegin(); file_path_itr != sorted_dir.rend(); ++file_path_itr) {
         cout << "Searching in file: " << *file_path_itr << "..." << endl;
@@ -68,12 +68,12 @@ int64_t RBTree::search_SSTs(const int64_t& key) {
             continue;
         }
 
-        int64_t value = search_SST(*file_path_itr, key);
-        if (value != -1) return value;
+        const int64_t* value = search_SST(*file_path_itr, key);
+        if (value != nullptr) return value;
         cout << "Not found key: " << key << " in file: " << *file_path_itr << endl;
     }
     
-    return -1;
+    return nullptr;
 }
 
 // Get min_key and max_key from a SST file's name
@@ -91,7 +91,7 @@ void RBTree::parse_SST_name(const string& file_name, int64_t& min_key, int64_t& 
 }
 
 // Helper function to search the key in a SST file
-int64_t RBTree::search_SST(const fs::path& file_path, const int64_t& key) {
+const int64_t* RBTree::search_SST(const fs::path& file_path, const int64_t& key) {
     auto file_size = fs::file_size(file_path);
     auto num_elements = file_size / constants::PAIR_SIZE;
 
@@ -115,7 +115,7 @@ int64_t RBTree::search_SST(const fs::path& file_path, const int64_t& key) {
         assert(ret == constants::PAIR_SIZE);
 
         if (cur.first == key) {
-            return cur.second;
+            return new int64_t(cur.second);
         } else if (cur.first > key) {
             high = mid - 1;
         } else {
@@ -125,7 +125,7 @@ int64_t RBTree::search_SST(const fs::path& file_path, const int64_t& key) {
 
     close(fd);
 
-    return -1;
+    return nullptr;
 }
 
 // Scan the memtable and SST to retrieve all KV-pairs in a key range in key order (key1 < key2)

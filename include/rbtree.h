@@ -66,14 +66,14 @@ class RBTree {
         }
 
         void put(const int64_t& key, const int64_t& value);
-        int64_t get(const int64_t& key);
+        const int64_t* get(const int64_t& key);
         vector<pair<int64_t, int64_t>> scan(const int64_t& key1, const int64_t& key2);
         string writeToSST();
 
     private:
         Node* search(Node* root, const int64_t& key);
-        int64_t search_SSTs(const int64_t& key);
-        int64_t search_SST(const fs::path& file_path, const int64_t& key);
+        const int64_t* search_SSTs(const int64_t& key);
+        const int64_t* search_SST(const fs::path& file_path, const int64_t& key);
         void scan_SST(vector<pair<int64_t, int64_t>>& sorted_KV, const string& file_path, const int64_t& key1, const int64_t& key2);
         void scan_memtable(vector<pair<int64_t, int64_t>>& sorted_KV, Node* root, const int64_t& key1, const int64_t& key2);
 

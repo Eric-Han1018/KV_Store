@@ -49,10 +49,10 @@ int main(int argc, char **argv) {
 
     // Search for key in the memtable
     cout << "\nTesting get() in memtable..." << endl;
-    double key = 3;
-    double value = memtable.get(key);
-    if (value != -1) {
-        cout << "Found {Key: " << key << ", Value: " << value << "}" << endl;
+    int64_t key = 3;
+    const int64_t* value = memtable.get(key);
+    if (value != nullptr) {
+        cout << "Found {Key: " << key << ", Value: " << *value << "}" << endl;
     } else {
         cout << "Not found Key: " << key << endl;
     }
@@ -70,8 +70,15 @@ int main(int argc, char **argv) {
     // Testing SST search
     cout << "\nTesting get() from SST..." << endl;
     value = memtable.get(key);
-    if (value != -1) {
-        cout << "Found {Key: " << key << ", Value: " << value << "}" << endl;
+    if (value != nullptr) {
+        cout << "Found {Key: " << key << ", Value: " << *value << "}" << endl;
+    } else {
+        cout << "Not found Key: " << key << endl;
+    }
+    key = -665;
+    value = memtable.get(key);
+    if (value != nullptr) {
+        cout << "Found {Key: " << key << ", Value: " << *value << "}" << endl;
     } else {
         cout << "Not found Key: " << key << endl;
     }
