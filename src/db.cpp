@@ -56,6 +56,7 @@ int main(int argc, char **argv) {
     } else {
         cout << "Not found Key: " << key << endl;
     }
+    delete value;
 
     // Write memtable to SST
     cout << "\nTesting senario of reaching tree capacity..." << endl;
@@ -75,6 +76,7 @@ int main(int argc, char **argv) {
     } else {
         cout << "Not found Key: " << key << endl;
     }
+    delete value;
     key = -665;
     value = memtable.get(key);
     if (value != nullptr) {
@@ -82,13 +84,21 @@ int main(int argc, char **argv) {
     } else {
         cout << "Not found Key: " << key << endl;
     }
+    delete value;
 
     // Testing memtable and SST scan
     cout << "\nTesting scan() from memtable and SST..." << endl;
-    vector<pair<int64_t, int64_t>> scan_result = memtable.scan(-10, 17);
-    for (auto i : scan_result) {
+    const vector<pair<int64_t, int64_t>>* scan_result = memtable.scan(-10, 17);
+    for (auto i : *scan_result) {
         cout << i.first << "; " << i.second << endl;
     }
+    delete scan_result;
+    cout << "\nTesting scan() on unexisted keys..." << endl;
+    scan_result = memtable.scan(-555, -550);
+    for (auto i : *scan_result) {
+        cout << i.first << "; " << i.second << endl;
+    }
+    delete scan_result;
 
     return 0;
 }

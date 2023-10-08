@@ -67,7 +67,7 @@ class RBTree {
 
         void put(const int64_t& key, const int64_t& value);
         const int64_t* get(const int64_t& key);
-        vector<pair<int64_t, int64_t>> scan(const int64_t& key1, const int64_t& key2);
+        const vector<pair<int64_t, int64_t>>* scan(const int64_t& key1, const int64_t& key2);
         string writeToSST();
 
     private:

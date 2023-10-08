@@ -129,15 +129,15 @@ const int64_t* RBTree::search_SST(const fs::path& file_path, const int64_t& key)
 }
 
 // Scan the memtable and SST to retrieve all KV-pairs in a key range in key order (key1 < key2)
-vector<pair<int64_t, int64_t>> RBTree::scan(const int64_t& key1, const int64_t& key2) {
+const vector<pair<int64_t, int64_t>>* RBTree::scan(const int64_t& key1, const int64_t& key2) {
     // Check if key1 < key2
     assert(key1 < key2);
 
-    vector<pair<int64_t, int64_t>> sorted_KV;
+    vector<pair<int64_t, int64_t>>* sorted_KV = new vector<pair<int64_t, int64_t>>;
     size_t len;
 
     // Scan the memtable
-    scan_memtable(sorted_KV, root, key1, key2);
+    scan_memtable(*sorted_KV, root, key1, key2);
 
     // Scan each SST
     for (auto file_path_itr = sorted_dir.rbegin(); file_path_itr != sorted_dir.rend(); ++file_path_itr) {
@@ -151,15 +151,15 @@ vector<pair<int64_t, int64_t>> RBTree::scan(const int64_t& key1, const int64_t& 
         }
 
         // Store current size of array for merging
-        len = sorted_KV.size();
+        len = sorted_KV->size();
 
         // Scan the SST
-        scan_SST(sorted_KV, *file_path_itr, key1, key2);
+        scan_SST(*sorted_KV, *file_path_itr, key1, key2);
 
         // Merge into one sorted array
         // FIXME: ask Prof if merge() is allowed
         // FIXME: is using merge efficient?
-        inplace_merge(sorted_KV.begin(), sorted_KV.begin()+len, sorted_KV.end());
+        inplace_merge(sorted_KV->begin(), sorted_KV->begin()+len, sorted_KV->end());
     }
 
     return sorted_KV;
