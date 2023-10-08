@@ -44,27 +44,22 @@ class RBTree {
         size_t curr_size;         // Current size
         int64_t min_key;          // Minimum key stored in the tree
         int64_t max_key;          // Maximum key stored in the tree
-        vector<fs::path>* sorted_dir; // The sorted list of all SST files
+        vector<fs::path> sorted_dir; // The sorted list of all SST files (ascending order, need to reverse when iterate)
 
         RBTree(size_t capacity, Node* root=nullptr): root(root), memtable_size{capacity} {
             curr_size = 0;
             min_key = numeric_limits<int64_t>::max();
             max_key = numeric_limits<int64_t>::min();
 
-            // Iterate the data/ folder to get a sorted list of files
-            // FIXME: ask Prof if set is allowed (as set<> is implemented using rbtree)
-            set<fs::path> sorted_dir_set;
+            // Get a sorted list of existing SST files
             for (auto& file_path : fs::directory_iterator(constants::DATA_FOLDER)) {
-                sorted_dir_set.insert(file_path);
+                sorted_dir.push_back(file_path);
             }
-
-            // Convert Set to Vector (faster for pushing back in future)
-            sorted_dir = new vector<fs::path>(sorted_dir_set.begin(), sorted_dir_set.end());
+            sort(sorted_dir.begin(), sorted_dir.end());
 
         }
         ~RBTree() {
             cout << "Deleting tree..." << endl;
-            delete sorted_dir;
             delete root;
             root = nullptr;
         }
@@ -88,5 +83,5 @@ class RBTree {
         void deleteNode(Node* node);
 
         void clear_tree();
-        void parse_SST_name(string file_name, int64_t& min_key, int64_t& max_key);
+        void parse_SST_name(const string& file_name, int64_t& min_key, int64_t& max_key);
 };

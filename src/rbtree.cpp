@@ -57,28 +57,28 @@ Node* RBTree::search(Node* root, const int64_t& key) {
 
 // Search matching key in SSTs in the order of youngest to oldest
 int64_t RBTree::search_SSTs(const int64_t& key) {
-    // Iterate the second time to read each file in alphabetical order
-    for (auto& file_path : *sorted_dir) {
-        cout << "Searching in file: " << file_path << "..." << endl;
+    // Iterate to read each file in descending order (new->old)
+    for (auto file_path_itr = sorted_dir.rbegin(); file_path_itr != sorted_dir.rend(); ++file_path_itr) {
+        cout << "Searching in file: " << *file_path_itr << "..." << endl;
 
         // Skip if the key is not between min_key and max_key
         int64_t min_key, max_key;
-        parse_SST_name(file_path, min_key, max_key);
+        parse_SST_name(*file_path_itr, min_key, max_key);
         if (key < min_key || key > max_key) {
-            cout << "key is not in range of: " << file_path << endl;
+            cout << "key is not in range of: " << *file_path_itr << endl;
             continue;
         }
 
-        int64_t value = search_SST(file_path, key);
+        int64_t value = search_SST(*file_path_itr, key);
         if (value != -1) return value;
-        cout << "Not found key: " << key << " in file: " << file_path << endl;
+        cout << "Not found key: " << key << " in file: " << *file_path_itr << endl;
     }
     
     return -1;
 }
 
 // Get min_key and max_key from a SST file's name
-void RBTree::parse_SST_name(string file_name, int64_t& min_key, int64_t& max_key) {
+void RBTree::parse_SST_name(const string& file_name, int64_t& min_key, int64_t& max_key) {
     vector<string> parsed_name(4);
     string segment;
     stringstream name_stream(file_name);
@@ -141,13 +141,13 @@ vector<pair<int64_t, int64_t>> RBTree::scan(const int64_t& key1, const int64_t& 
     scan_memtable(sorted_KV, root, key1, key2);
 
     // Scan each SST
-    for (auto& file_path : *sorted_dir) {
-        cout << "Scanning file: " << file_path << "..." << endl;
+    for (auto file_path_itr = sorted_dir.rbegin(); file_path_itr != sorted_dir.rend(); ++file_path_itr) {
+        cout << "Scanning file: " << *file_path_itr << "..." << endl;
         // Skip if the keys is not between min_key and max_key
         int64_t min_key, max_key;
-        parse_SST_name(file_path, min_key, max_key);
+        parse_SST_name(*file_path_itr, min_key, max_key);
         if (key2 < min_key || key1 > max_key) {
-            cout << "key is not in range of: " << file_path << endl;
+            cout << "key is not in range of: " << *file_path_itr << endl;
             continue;
         }
 
@@ -155,7 +155,7 @@ vector<pair<int64_t, int64_t>> RBTree::scan(const int64_t& key1, const int64_t& 
         len = sorted_KV.size();
 
         // Scan the SST
-        scan_SST(sorted_KV, file_path, key1, key2);
+        scan_SST(sorted_KV, *file_path_itr, key1, key2);
 
         // Merge into one sorted array
         // FIXME: ask Prof if merge() is allowed
@@ -247,7 +247,7 @@ string RBTree::writeToSST() {
     close(fd);
 
     // Add to the maintained directory list
-    sorted_dir->push_back(file_name);
+    sorted_dir.push_back(file_name);
 
     // Clear the memtable
     clear_tree();
