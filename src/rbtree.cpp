@@ -204,7 +204,7 @@ void RBTree::scan_SST(vector<pair<int64_t, int64_t>>& sorted_KV, const string& f
         assert(ret == constants::PAIR_SIZE);
 
         if (cur.first <= key2) {
-            sorted_KV.push_back(cur);
+            sorted_KV.emplace_back(cur);
         } else {
             break; // until meeting the first value out of range
         }
@@ -219,7 +219,7 @@ void RBTree::scan_memtable(vector<pair<int64_t, int64_t>>& sorted_KV, Node* root
         scan_memtable(sorted_KV, root->left, key1, key2);
         // Only include KV-pairs that are in the range
         if (key1 <= root->key && root->key <= key2) {
-            sorted_KV.push_back({root->key, root->value});
+            sorted_KV.emplace_back(root->key, root->value);
         }
         scan_memtable(sorted_KV, root->right, key1, key2);
     }
@@ -246,7 +246,7 @@ string RBTree::writeToSST() {
     close(fd);
 
     // Add to the maintained directory list
-    sorted_dir.push_back(file_name);
+    sorted_dir.emplace_back(file_name);
 
     // Clear the memtable
     clear_tree();
