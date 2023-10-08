@@ -6,7 +6,8 @@ OBJ_DIR := obj
 BIN_DIR := bin
 DATA_DIR := data
 
-EXE := $(BIN_DIR)/unittest
+EXE := $(BIN_DIR)/db
+TST := $(BIN_DIR)/tests
 SRC := $(wildcard $(SRC_DIR)/*.cpp)
 OBJ := $(SRC:$(SRC_DIR)/%.cpp=$(OBJ_DIR)/%.o)
 
@@ -28,11 +29,16 @@ LDFLAGS  := -Llib
 LDLIBS   :=
 
 
-.PHONY: all clean
+.PHONY: db test clean
 
-all: $(EXE)
+db: $(EXE)
 
 $(EXE): $(OBJ) | $(BIN_DIR)
+	$(CC) $(LDFLAGS) $^ $(LDLIBS) -o $@
+
+test: $(TST)
+
+$(TST): $(OBJ) | $(BIN_DIR)
 	$(CC) $(LDFLAGS) $^ $(LDLIBS) -o $@
 
 $(OBJ_DIR)/%.o: $(SRC_DIR)/%.cpp | $(OBJ_DIR)
@@ -43,9 +49,6 @@ $(BIN_DIR) $(OBJ_DIR):
 	mkdir -p $(DATA_DIR)
 
 clean:
-	@$(RM) -rv $(EXE) $(OBJ_DIR) $(DATA_DIR)
-
-test: $(EXE)
-	./$(EXE)
+	@$(RM) -rv $(EXE) $(TST) $(OBJ_DIR) $(DATA_DIR)
 
 -include $(OBJ:.o=.d)
