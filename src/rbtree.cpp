@@ -234,7 +234,7 @@ string RBTree::writeToSST() {
     // Create file name based on current time
     // TODO: modify file name to a smarter way
     string file_name = constants::DATA_FOLDER;
-    time_t current_time = time(0);
+    clock_t current_time = clock();
     file_name.append(to_string(current_time)).append("_").append(to_string(min_key)).append("_").append(to_string(max_key)).append(".bytes");
 
     // Write data structure to binary file
