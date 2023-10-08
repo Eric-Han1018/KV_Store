@@ -31,15 +31,11 @@ LDLIBS   :=
 
 .PHONY: db test clean
 
-db: $(EXE)
+db: $(OBJ) | $(BIN_DIR)
+	$(CC) $(LDFLAGS) $(filter-out $(OBJ_DIR)/unittest.o, $(OBJ)) $(LDLIBS) -o $(EXE)
 
-$(EXE): $(OBJ) | $(BIN_DIR)
-	$(CC) $(LDFLAGS) $^ $(LDLIBS) -o $@
-
-test: $(TST)
-
-$(TST): $(OBJ) | $(BIN_DIR)
-	$(CC) $(LDFLAGS) $^ $(LDLIBS) -o $@
+test: $(OBJ) | $(BIN_DIR)
+	$(CC) $(LDFLAGS) $(filter-out $(OBJ_DIR)/db.o, $(OBJ)) $(LDLIBS) -o $(TST)
 
 $(OBJ_DIR)/%.o: $(SRC_DIR)/%.cpp | $(OBJ_DIR)
 	$(CC) $(CPPFLAGS) $(CFLAGS) -c $< -o $@
