@@ -38,8 +38,8 @@ void test_get()
     // random insert
     memtable.put(1, 10);
     memtable.put(5, 50);
-    double key = 5;
-    double value = memtable.get(key);
+    int64_t key = 5;
+    int64_t value = memtable.get(key);
     if (value != -1) {
         cout << "Found {Key: " << key << ", Value: " << value << "}" << endl;
     } else {
@@ -48,6 +48,14 @@ void test_get()
     cout << "\n--- test case 2: Test get() from SST ---" << endl;
     memtable.put(2, 80);
     value = memtable.get(key);
+    if (value != -1) {
+        cout << "Found {Key: " << key << ", Value: " << value << "}" << endl;
+    } else {
+        cout << "Not found Key: " << key << endl;
+    }
+    cout << "\n--- test case 3: Test get() from SST ---" << endl;
+    key = -668;
+    value = memtable.get(-668);
     if (value != -1) {
         cout << "Found {Key: " << key << ", Value: " << value << "}" << endl;
     } else {
@@ -80,8 +88,8 @@ void test_scan(){
     memtable.put(4, 40);
     memtable.put(3, 30);
     memtable.put(8, 80);
-    double key1 = 2;
-    double key2 = 4;
+    int64_t key1 = 2;
+    int64_t key2 = 4;
     vector<pair<int64_t, int64_t>> values = memtable.scan(key1, key2);
     for (const auto& pair : values) {
         cout << "Found {Key: " << pair.first << ", Value: " << pair.second << "}" << endl;
@@ -114,8 +122,8 @@ void unit_test1()
 
     // Search for key in the memtable
     cout << "\nTesting get() in memtable..." << endl;
-    double key = 3;
-    double value = memtable.get(key);
+    int64_t key = 3;
+    int64_t value = memtable.get(key);
     if (value != -1) {
         cout << "Found {Key: " << key << ", Value: " << value << "}" << endl;
     } else {
