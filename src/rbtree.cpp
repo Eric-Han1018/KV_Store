@@ -1,7 +1,7 @@
 #include <iostream>
 #include <unistd.h>
 #include <fcntl.h>
-#include "rbtree.h"
+#include "database.h"
 #include <map>
 #include <list>
 #include <fstream>
@@ -11,6 +11,24 @@
 #include <string>
 #include <sstream>
 using namespace std;
+
+RBTree::RBTree(size_t capacity, Node* root): root(root), memtable_size{capacity} {
+    curr_size = 0;
+    min_key = numeric_limits<int64_t>::max();
+    max_key = numeric_limits<int64_t>::min();
+
+    // Get a sorted list of existing SST files
+    for (auto& file_path : fs::directory_iterator(databaseConstants::DATA_FOLDER)) {
+        sorted_dir.push_back(file_path);
+    }
+    sort(sorted_dir.begin(), sorted_dir.end());
+
+}
+RBTree::~RBTree() {
+    cout << "Deleting tree..." << endl;
+    delete root;
+    root = nullptr;
+}
 
 // TODO: Insert a key-value pair into the memtable
 void RBTree::put(const int64_t& key, const int64_t& value) {
@@ -93,7 +111,7 @@ void RBTree::parse_SST_name(const string& file_name, int64_t& min_key, int64_t& 
 // Helper function to search the key in a SST file
 const int64_t* RBTree::search_SST(const fs::path& file_path, const int64_t& key) {
     auto file_size = fs::file_size(file_path);
-    auto num_elements = file_size / constants::PAIR_SIZE;
+    auto num_elements = file_size / databaseConstants::PAIR_SIZE;
 
     // Variables used in binary search
     pair<int64_t, int64_t> cur;
@@ -111,8 +129,8 @@ const int64_t* RBTree::search_SST(const fs::path& file_path, const int64_t& key)
         mid = (low + high) / 2;
         // Do one I/O at each hop
         // FIXME: need to confirm if this is what required
-        int ret = pread(fd, (char*)&cur, constants::PAIR_SIZE, mid*constants::PAIR_SIZE);
-        assert(ret == constants::PAIR_SIZE);
+        int ret = pread(fd, (char*)&cur, databaseConstants::PAIR_SIZE, mid*databaseConstants::PAIR_SIZE);
+        assert(ret == databaseConstants::PAIR_SIZE);
 
         if (cur.first == key) {
             return new int64_t(cur.second);
@@ -169,7 +187,7 @@ const vector<pair<int64_t, int64_t>>* RBTree::scan(const int64_t& key1, const in
 // The implementation is similar with search_SST()
 void RBTree::scan_SST(vector<pair<int64_t, int64_t>>& sorted_KV, const string& file_path, const int64_t& key1, const int64_t& key2) {
     auto file_size = fs::file_size(file_path);
-    int num_elements = file_size / constants::PAIR_SIZE;
+    int num_elements = file_size / databaseConstants::PAIR_SIZE;
 
     // Variables used in binary search
     pair<int64_t, int64_t> cur;
@@ -187,8 +205,8 @@ void RBTree::scan_SST(vector<pair<int64_t, int64_t>>& sorted_KV, const string& f
         mid = (low + high) / 2;
         // Do one I/O at each hop
         // FIXME: need to confirm if this is what required
-        int ret = pread(fd, (char*)&cur, constants::PAIR_SIZE, mid*constants::PAIR_SIZE);
-        assert(ret == constants::PAIR_SIZE);
+        int ret = pread(fd, (char*)&cur, databaseConstants::PAIR_SIZE, mid*databaseConstants::PAIR_SIZE);
+        assert(ret == databaseConstants::PAIR_SIZE);
 
         if (cur.first < key1) {
             low = mid + 1; // target can only in right half
@@ -200,8 +218,8 @@ void RBTree::scan_SST(vector<pair<int64_t, int64_t>>& sorted_KV, const string& f
     // Low and high both points to what we are looking for
     for (auto i=low; i < num_elements ; ++i) {
         // Iterate each element and push to vector
-        int ret = pread(fd, (char*)&cur, constants::PAIR_SIZE, i*constants::PAIR_SIZE);
-        assert(ret == constants::PAIR_SIZE);
+        int ret = pread(fd, (char*)&cur, databaseConstants::PAIR_SIZE, i*databaseConstants::PAIR_SIZE);
+        assert(ret == databaseConstants::PAIR_SIZE);
 
         if (cur.first <= key2) {
             sorted_KV.emplace_back(cur);
@@ -233,7 +251,7 @@ string RBTree::writeToSST() {
 
     // Create file name based on current time
     // TODO: modify file name to a smarter way
-    string file_name = constants::DATA_FOLDER;
+    string file_name = databaseConstants::DATA_FOLDER;
     time_t current_time = time(0);
     clock_t current_clock = clock(); // In case there is a tie in time()
     file_name.append(to_string(current_time)).append(to_string(current_clock)).append("_").append(to_string(min_key)).append("_").append(to_string(max_key)).append(".bytes");
@@ -242,7 +260,7 @@ string RBTree::writeToSST() {
     // FIXME: do we need O_DIRECT for now?
     int fd = open(file_name.c_str(), O_WRONLY | O_CREAT | O_SYNC, 0777);
     assert(fd!=-1);
-    int test = pwrite(fd, (char*)&sorted_KV[0], sorted_KV.size()*constants::PAIR_SIZE, 0);
+    int test = pwrite(fd, (char*)&sorted_KV[0], sorted_KV.size()*databaseConstants::PAIR_SIZE, 0);
     assert(test!=-1);
     close(fd);
 
