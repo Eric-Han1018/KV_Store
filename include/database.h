@@ -9,26 +9,30 @@
 using namespace std;
 namespace fs = std::filesystem;
 
-namespace databaseConstants {
-    const string DATA_FOLDER = "./data/";
-    const int KEY_VALUE_SIZE = sizeof(int64_t);
-    const int PAIR_SIZE = sizeof(pair<int64_t, int64_t>);
-}
-
 class Database {
     public:
         RBTree* memtable;
-        BPlusTree* SST;
+        SST* sst;
+
 
         Database(size_t memtable_capacity, Node* memtable_root=nullptr) {
             memtable = new RBTree(memtable_capacity, memtable_root);
-            SST = new BPlusTree();
+            sst = new SST();
         }
 
         ~Database() {
             delete memtable;
-            delete SST;
+            delete sst;
             memtable = nullptr;
-            SST = nullptr;
+            sst = nullptr;
         }
+
+        void put(const int64_t& key, const int64_t& value);
+        const int64_t* get(const int64_t& key);
+        const vector<pair<int64_t, int64_t>>* scan(const int64_t& key1, const int64_t& key2);
+
+    private:
+        string writeToSST();
+        void scan_memtable(vector<pair<int64_t, int64_t>>& sorted_KV, Node* root);
+        void clear_tree();
 };
