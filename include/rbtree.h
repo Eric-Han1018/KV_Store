@@ -2,17 +2,14 @@
 #include <iostream>
 #include <vector>
 #include <filesystem>
+#include <set>
+#include <algorithm>
+#include "constants.h"
 using namespace std;
 namespace fs = std::filesystem;
 
-// Global constant variables
-namespace constants {
-    const string DATA_FOLDER = "./data/";
-    const int KEY_VALUE_SIZE = sizeof(int64_t);
-    const int PAIR_SIZE = sizeof(pair<int64_t, int64_t>);
-}
-
 enum Color {black, red};
+enum Result {allGood, notInMemtable, memtableFull};
 
 class Node {
     public:
@@ -39,29 +36,20 @@ class Node {
 class RBTree {
     public:
         Node* root;
-        size_t memtable_size;   // Maximum capacity
-        size_t curr_size;       // Current size
+        size_t memtable_size;     // Maximum capacity
+        size_t curr_size;         // Current size
+        int64_t min_key;          // Minimum key stored in the tree
+        int64_t max_key;          // Maximum key stored in the tree
 
-        RBTree(size_t capacity, Node* root=nullptr): root(root), memtable_size{capacity} {
-            curr_size = 0;
-        }
-        ~RBTree() {
-            cout << "Deleting tree..." << endl;
-            delete root;
-            root = nullptr;
-        }
+        RBTree(size_t capacity, Node* root=nullptr);
+        ~RBTree();
 
-        void put(const int64_t& key, const int64_t& value);
-        int64_t get(const int64_t& key);
-        vector<pair<int64_t, int64_t>> scan(const int64_t& key1, const int64_t& key2);
-        string writeToSST();
+        Result put(const int64_t& key, const int64_t& value);
+        Result get(int64_t*& result, const int64_t& key);
+        void scan(vector<pair<int64_t, int64_t>>& sorted_KV, const Node* root, const int64_t& key1, const int64_t& key2);
 
     private:
         Node* search(Node* root, const int64_t& key);
-        int64_t search_SSTs(const int64_t& key);
-        int64_t search_SST(const fs::path& file_path, const int64_t& key);
-        void inorderScan(vector<pair<int64_t, int64_t>>& sorted_KV, Node* root, const int64_t& key1, const int64_t& key2);
-
         void rotateLeft(Node* x);
         void rotateRight(Node* x);
         void insertFixup(Node* node);
