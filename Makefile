@@ -35,7 +35,7 @@ db: $(OBJ) | $(BIN_DIR)
 	$(CC) $(LDFLAGS) $(filter-out $(OBJ_DIR)/unittest.o, $(OBJ)) $(LDLIBS) -o $(EXE)
 
 test: $(OBJ) | $(BIN_DIR)
-	$(CC) $(LDFLAGS) $(filter-out $(OBJ_DIR)/db.o, $(OBJ)) $(LDLIBS) -o $(TST)
+	$(CC) $(LDFLAGS) $(filter-out $(OBJ_DIR)/benchmark.o, $(OBJ)) $(LDLIBS) -o $(TST)
 
 $(OBJ_DIR)/%.o: $(SRC_DIR)/%.cpp | $(OBJ_DIR)
 	$(CC) $(CPPFLAGS) $(CFLAGS) -c $< -o $@
