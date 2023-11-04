@@ -51,7 +51,7 @@ void test_get()
     db.put(1, 10);
     db.put(5, 50);
     int64_t key = 5;
-    const int64_t* value = db.get(key);
+    const int64_t* value = db.get(key, true);
     if (value != nullptr) {
         cout << "Found {Key: " << key << ", Value: " << *value << "}" << endl;
         assert(*value == 50);
@@ -62,7 +62,7 @@ void test_get()
 
     cout << "\n--- test case 2: Test get() from SST ---" << endl;
     db.put(2, 80);
-    value = db.get(key);
+    value = db.get(key, true);
     if (value != nullptr) {
         cout << "Found {Key: " << key << ", Value: " << *value << "}" << endl;
         assert(*value == 50);
@@ -72,7 +72,7 @@ void test_get()
     }
     cout << "\n--- test case 3: Test get() from unexisted key ---" << endl;
     key = -668;
-    value = db.get(-668);
+    value = db.get(-668, true);
     if (value != nullptr) {
         cout << "Found {Key: " << key << ", Value: " << *value << "}" << endl;
         assert(false);
@@ -114,34 +114,37 @@ void test_scan(){
     db.put(8, 80);
     int64_t key1 = 2;
     int64_t key2 = 4;
-    const vector<pair<int64_t, int64_t>>* values = db.scan(key1, key2);
+    const vector<pair<int64_t, int64_t>>* values = db.scan(key1, key2, true);
     vector<pair<int64_t, int64_t>> ans = {{2, 20}, {3, 30}, {4, 40}};
     for (const auto& pair : *values) {
         cout << "Found {Key: " << pair.first << ", Value: " << pair.second << "}" << endl;
     }
     assert(is_sorted(values->begin(), values->end()));
     assert(equal(values->begin(), values->end(), ans.begin()));
+    delete values;
 
     cout << "\n--- test case 2: Test scan() from SST ---" << endl;
     db.put(-1, -10);
-    values = db.scan(key1, key2);
+    values = db.scan(key1, key2, true);
     for (const auto& pair : *values) {
         cout << "Found {Key: " << pair.first << ", Value: " << pair.second << "}" << endl;
     }
     assert(is_sorted(values->begin(), values->end()));
     assert(equal(values->begin(), values->end(), ans.begin()));
+    delete values;
 
     cout << "\n--- test case 3: Test scan() from both memtable and SST ---" << endl;
     db.put(7, 90);
     key1 = 2;
     key2 = 8;
-    values = db.scan(key1, key2);
+    values = db.scan(key1, key2, true);
     for (const auto& pair : *values) {
         cout << "Found {Key: " << pair.first << ", Value: " << pair.second << "}" << endl;
     }
     assert(is_sorted(values->begin(), values->end()));
     ans = {{2, 20}, {3, 30}, {4, 40}, {5, 50}, {7, 90}, {8, 80}};
     assert(equal(values->begin(), values->end(), ans.begin()));
+    delete values;
 }
 
 int main(int argc, char **argv) {

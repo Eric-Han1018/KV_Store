@@ -23,15 +23,15 @@ void Database::put(const int64_t& key, const int64_t& value) {
     }
 }
 
-const int64_t* Database::get(const int64_t& key){
+const int64_t* Database::get(const int64_t& key, const bool use_btree){
     int64_t* result;
     if(memtable->get(result, key) == notInMemtable) {
-        return sst->get(key);
+        return sst->get(key, use_btree);
     }
     return result;
 }
 
-const vector<pair<int64_t, int64_t>>* Database::scan(const int64_t& key1, const int64_t& key2) {
+const vector<pair<int64_t, int64_t>>* Database::scan(const int64_t& key1, const int64_t& key2, const bool use_btree) {
     // Check if key1 < key2
     assert(key1 < key2);
 
@@ -41,11 +41,14 @@ const vector<pair<int64_t, int64_t>>* Database::scan(const int64_t& key1, const 
     memtable->scan(*sorted_KV, memtable->root, key1, key2);
 
     // Scan each SST
-    sst->scan(sorted_KV, key1, key2);
+    sst->scan(sorted_KV, key1, key2, use_btree);
 
     return sorted_KV;
 }
 
+/* Insert non-leaf elements into their node in the corresponding level
+ * Non-leaf Node Structure (see SST.h): |...keys...|...offsets....|# of keys|
+ */
 void Database::insertHelper(vector<vector<BTreeNode>>& non_leaf_nodes, vector<int32_t>& counters, int64_t& key, int32_t current_level) {
     // If first time access the level, create it
     if (current_level >= (int32_t)non_leaf_nodes.size()) {
@@ -103,14 +106,17 @@ void print_B_Tree(vector<vector<BTreeNode>>& non_leaf_nodes, vector<pair<int64_t
     cout << endl;
 }
 
-void Database::convertToSST(vector<vector<BTreeNode>>& non_leaf_nodes, vector<pair<int64_t, int64_t>>& sorted_KV) {
+/* Write the levles in the B-Tree to a SST file
+ * SST structure: |root|..next level..|...next level...|....sorted_KV (as leaf)....|
+ * Return: offset to leaf level
+ */
+int32_t Database::convertToSST(vector<vector<BTreeNode>>& non_leaf_nodes, vector<pair<int64_t, int64_t>>& sorted_KV) {
     // This counts the number of elements in each level
     vector<int32_t> counters;
 
     int32_t padding;
     int32_t current_level = 0;
 
-    // FIXME: need to exclude padding when scanning!
     // To make things easier, we pad repeated last element to form a complete leaf node
     if ((int32_t)sorted_KV.size() % constants::KEYS_PER_NODE != 0) {
         padding = constants::KEYS_PER_NODE - ((int32_t)sorted_KV.size() % constants::KEYS_PER_NODE);
@@ -166,22 +172,37 @@ void Database::convertToSST(vector<vector<BTreeNode>>& non_leaf_nodes, vector<pa
         }
     }
     print_B_Tree(non_leaf_nodes, sorted_KV);
+
+    // FIXME: the current implementation is to add a root no matter if the number of KVs exceed a node's capacity
+    // return non_leaf_nodes[0][0].size != 0 ? non_leaf_nodes[0][0].ptrs[0] : 0;
+    return non_leaf_nodes[0][0].ptrs[0];
 }
 
-// When memtable reaches its capacity, write it into an SST
+/* When memtable reaches its capacity, write it into an SST
+ * File name format: timeclock_min_max_leafOffset.bytes
+ */
 string Database::writeToSST() {
     // Content in std::vector is stored contiguously
     vector<pair<int64_t, int64_t>> sorted_KV; // Stores all non-leaf elements
     vector<vector<BTreeNode>> non_leaf_nodes; // Stores all leaf elements
     scan_memtable(sorted_KV, memtable->root);
-    convertToSST(non_leaf_nodes, sorted_KV);
+
+    bool to_BTree = (int32_t)sorted_KV.size() > constants::KEYS_PER_NODE; 
+    int32_t leaf_offset;
+    
+    // DO NOT convert to B-Tree when # keys in KV store is less than node size
+    if (to_BTree) {
+        leaf_offset = convertToSST(non_leaf_nodes, sorted_KV);
+    } else {
+        leaf_offset = 0;
+    }
 
     // Create file name based on current time
     // TODO: modify file name to a smarter way
     string file_name = constants::DATA_FOLDER;
     time_t current_time = time(0);
     clock_t current_clock = clock(); // In case there is a tie in time()
-    file_name.append(to_string(current_time)).append(to_string(current_clock)).append("_").append(to_string(memtable->min_key)).append("_").append(to_string(memtable->max_key)).append(".bytes");
+    file_name.append(to_string(current_time)).append(to_string(current_clock)).append("_").append(to_string(memtable->min_key)).append("_").append(to_string(memtable->max_key)).append("_").append(to_string(leaf_offset)).append(".bytes");
 
     // Write data structure to binary file
     // FIXME: do we need O_DIRECT for now?
@@ -190,13 +211,16 @@ string Database::writeToSST() {
 
     int nbytes;
     int offset = 0;
-    // Write non-leaf levels, starting from root
-    for (int32_t i = (int32_t)non_leaf_nodes.size() - 1; i >= 0; --i) {
-        vector<BTreeNode>& level = non_leaf_nodes[i];
-        nbytes = pwrite(fd, (char*)&level[0], level.size()*sizeof(BTreeNode), offset);
-        assert(nbytes == (int)(level.size()*sizeof(BTreeNode)));
-        offset += nbytes;
+    if (to_BTree) {
+        // Write non-leaf levels, starting from root
+        for (int32_t i = (int32_t)non_leaf_nodes.size() - 1; i >= 0; --i) {
+            vector<BTreeNode>& level = non_leaf_nodes[i];
+            nbytes = pwrite(fd, (char*)&level[0], level.size()*sizeof(BTreeNode), offset);
+            assert(nbytes == (int)(level.size()*sizeof(BTreeNode)));
+            offset += nbytes;
+        }
     }
+    
     // Write clustered leaves
     nbytes = pwrite(fd, (char*)&sorted_KV[0], sorted_KV.size()*constants::PAIR_SIZE, offset);
     assert(nbytes == (int)(sorted_KV.size()*constants::PAIR_SIZE));
@@ -234,12 +258,53 @@ void Database::clear_tree() {
 int main() {
     Database db(21);
 
-    int keys[] = {1, 2, 7, 16, 21, 22, 24, 29, 31, 32, 33, 35, 40, 61, 73, 74, 82, 90, 94, 95, 97};
+    int keys[] = {1, 2, 7, 16, 21, 22, 24, 29, 31, 32, 33, 35, 40, 61, 73, 74, 82, 90, 94, 95, 97, -1, -2};
     for (int key : keys) {
         db.put(key, 6);
     }
 
-    db.put(-1, 1);
+    // Find all existing keys
+    for (int key : keys) {
+        const int64_t* value = db.get(key, true);
+        if (value != nullptr)
+            cout << "Found: " << key << "->" << *value << endl;
+    }
+
+    // Find non-existing keys
+    int keys_non[] = {3, 4, 5, 6, 8, 9, 13, 34, 37, 55, 70, 85, 96};
+    for (int key : keys_non) {
+        const int64_t* value = db.get(key, true);
+        if (value != nullptr)
+            cout << "Found: " << key << "->" << *value << endl;
+    }
+
+    // Scan 1: lower & higher bounds both within range
+    const vector<pair<int64_t, int64_t>>* values = db.scan(20, 93, true);
+    for (const auto& pair : *values) {
+        cout << "Found {Key: " << pair.first << ", Value: " << pair.second << "}" << endl;
+    }
+    delete values;
+
+    // Scan 2: lower & higher bounds both not within range
+    values = db.scan(-20, 100, true);
+    for (const auto& pair : *values) {
+        cout << "Found {Key: " << pair.first << ", Value: " << pair.second << "}" << endl;
+    }
+    delete values;
+
+    // Scan 3: all elements smaller than range
+    values = db.scan(-100, -20, true);
+    for (const auto& pair : *values) {
+        cout << "Found {Key: " << pair.first << ", Value: " << pair.second << "}" << endl;
+    }
+    delete values;
+
+    // Scan 4: all elements larger than range
+    values = db.scan(100, 200, true);
+    for (const auto& pair : *values) {
+        cout << "Found {Key: " << pair.first << ", Value: " << pair.second << "}" << endl;
+    }
+    delete values;
 
     return 0;
 }
