@@ -8,7 +8,7 @@ using namespace std;
 
 // Global constant variables
 namespace constants {
-    const int KEYS_PER_NODE = 8;
+    const int KEYS_PER_NODE = 4;
     const int KEY_VALUE_SIZE = sizeof(int64_t);
     const int PAIR_SIZE = sizeof(pair<int64_t, int64_t>);
     const string DATA_FOLDER = "./data/";

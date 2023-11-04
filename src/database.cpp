@@ -255,56 +255,56 @@ void Database::clear_tree() {
     memtable->max_key = numeric_limits<int64_t>::min();
 }
 
-int main() {
-    Database db(21);
+// int main() {
+//     Database db(21);
 
-    int keys[] = {1, 2, 7, 16, 21, 22, 24, 29, 31, 32, 33, 35, 40, 61, 73, 74, 82, 90, 94, 95, 97, -1, -2};
-    for (int key : keys) {
-        db.put(key, 6);
-    }
+//     int keys[] = {1, 2, 7, 16, 21, 22, 24, 29, 31, 32, 33, 35, 40, 61, 73, 74, 82, 90, 94, 95, 97, -1, -2};
+//     for (int key : keys) {
+//         db.put(key, 6);
+//     }
 
-    // Find all existing keys
-    for (int key : keys) {
-        const int64_t* value = db.get(key, true);
-        if (value != nullptr)
-            cout << "Found: " << key << "->" << *value << endl;
-    }
+//     // Find all existing keys
+//     for (int key : keys) {
+//         const int64_t* value = db.get(key, true);
+//         if (value != nullptr)
+//             cout << "Found: " << key << "->" << *value << endl;
+//     }
 
-    // Find non-existing keys
-    int keys_non[] = {3, 4, 5, 6, 8, 9, 13, 34, 37, 55, 70, 85, 96};
-    for (int key : keys_non) {
-        const int64_t* value = db.get(key, true);
-        if (value != nullptr)
-            cout << "Found: " << key << "->" << *value << endl;
-    }
+//     // Find non-existing keys
+//     int keys_non[] = {3, 4, 5, 6, 8, 9, 13, 34, 37, 55, 70, 85, 96};
+//     for (int key : keys_non) {
+//         const int64_t* value = db.get(key, true);
+//         if (value != nullptr)
+//             cout << "Found: " << key << "->" << *value << endl;
+//     }
 
-    // Scan 1: lower & higher bounds both within range
-    const vector<pair<int64_t, int64_t>>* values = db.scan(20, 93, true);
-    for (const auto& pair : *values) {
-        cout << "Found {Key: " << pair.first << ", Value: " << pair.second << "}" << endl;
-    }
-    delete values;
+//     // Scan 1: lower & higher bounds both within range
+//     const vector<pair<int64_t, int64_t>>* values = db.scan(20, 93, true);
+//     for (const auto& pair : *values) {
+//         cout << "Found {Key: " << pair.first << ", Value: " << pair.second << "}" << endl;
+//     }
+//     delete values;
 
-    // Scan 2: lower & higher bounds both not within range
-    values = db.scan(-20, 100, true);
-    for (const auto& pair : *values) {
-        cout << "Found {Key: " << pair.first << ", Value: " << pair.second << "}" << endl;
-    }
-    delete values;
+//     // Scan 2: lower & higher bounds both not within range
+//     values = db.scan(-20, 100, true);
+//     for (const auto& pair : *values) {
+//         cout << "Found {Key: " << pair.first << ", Value: " << pair.second << "}" << endl;
+//     }
+//     delete values;
 
-    // Scan 3: all elements smaller than range
-    values = db.scan(-100, -20, true);
-    for (const auto& pair : *values) {
-        cout << "Found {Key: " << pair.first << ", Value: " << pair.second << "}" << endl;
-    }
-    delete values;
+//     // Scan 3: all elements smaller than range
+//     values = db.scan(-100, -20, true);
+//     for (const auto& pair : *values) {
+//         cout << "Found {Key: " << pair.first << ", Value: " << pair.second << "}" << endl;
+//     }
+//     delete values;
 
-    // Scan 4: all elements larger than range
-    values = db.scan(100, 200, true);
-    for (const auto& pair : *values) {
-        cout << "Found {Key: " << pair.first << ", Value: " << pair.second << "}" << endl;
-    }
-    delete values;
+//     // Scan 4: all elements larger than range
+//     values = db.scan(100, 200, true);
+//     for (const auto& pair : *values) {
+//         cout << "Found {Key: " << pair.first << ", Value: " << pair.second << "}" << endl;
+//     }
+//     delete values;
 
-    return 0;
-}
+//     return 0;
+// }
