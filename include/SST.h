@@ -8,13 +8,10 @@
 using namespace std;
 namespace fs = std::filesystem;
 
-// FIXME: Change to constants
-#define KEYS_PER_NODE 3
-
 // B-Tree non-leaf Node (members stored contiguously)
 typedef struct BTreeNode {
-    int64_t keys[KEYS_PER_NODE]; // Keys in each node
-    int32_t ptrs[KEYS_PER_NODE + 1]; // File offsets to children
+    int64_t keys[constants::KEYS_PER_NODE] = {0}; // Keys in each node
+    int32_t ptrs[constants::KEYS_PER_NODE + 1] = {0}; // File offsets to children
     int32_t size = 0;
 } BTreeNode;
 

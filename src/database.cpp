@@ -46,7 +46,7 @@ const vector<pair<int64_t, int64_t>>* Database::scan(const int64_t& key1, const 
     return sorted_KV;
 }
 
-void insertHelper(vector<vector<BTreeNode>>& non_leaf_nodes, vector<int32_t>& counters, int64_t& key, vector<pair<int64_t, int64_t>>& sorted_KV, int32_t current_level) {
+void Database::insertHelper(vector<vector<BTreeNode>>& non_leaf_nodes, vector<int32_t>& counters, int64_t& key, int32_t current_level) {
     // If first time access the level, create it
     if (current_level >= (int32_t)non_leaf_nodes.size()) {
         non_leaf_nodes.emplace_back(vector<BTreeNode>());
@@ -56,65 +56,35 @@ void insertHelper(vector<vector<BTreeNode>>& non_leaf_nodes, vector<int32_t>& co
     vector<BTreeNode>& level = non_leaf_nodes[current_level];
 
     // Get the offset in the node
-    int offset = counter % KEYS_PER_NODE;
+    int offset = counter % constants::KEYS_PER_NODE;
     // If first time access the node
     if (offset == 0) {
         // Case 1: the node needs to be sent to higher level
         if (counter != 0 // Exclude the first element
         && ((current_level + 1) >= (int32_t)non_leaf_nodes.size()  // It is the first time access the next level
-        || (counter / KEYS_PER_NODE) > counters[current_level + 1])) { // The node has not been sent up to the next level
-            insertHelper(non_leaf_nodes, counters, key, sorted_KV, current_level + 1);
+        || (counter / constants::KEYS_PER_NODE) > counters[current_level + 1])) { // The node has not been sent up to the next level
+            insertHelper(non_leaf_nodes, counters, key, current_level + 1);
             return;
         }
         // Case 2: The previous node has been sent to the higher level. Now insert the next node
         level.emplace_back(BTreeNode());
     }
-    BTreeNode& node = level[counter / KEYS_PER_NODE];
+    BTreeNode& node = level[counter / constants::KEYS_PER_NODE];
 
     // Insert into the node
-    cout << "Insert into level: " << -1 * (current_level + 1) <<", Offset: " << offset << ", count: " << counter << endl;
     node.keys[offset] = key;
-    node.ptrs[offset] = (counter / KEYS_PER_NODE) * (KEYS_PER_NODE + 1) + offset;
-    node.ptrs[offset + 1] = node.ptrs[offset] + 1;
-    // # ptrs = # keys + 1, so add one more ptr in the end of each node
-    // if (offset == KEYS_PER_NODE - 1) {
-    //     if (current_level == 0 && ((counter / KEYS_PER_NODE) * (KEYS_PER_NODE + 1) + offset) <= (int32_t)sorted_KV.size() / KEYS_PER_NODE)
-    //         node.ptrs[KEYS_PER_NODE] = (counter / KEYS_PER_NODE) * (KEYS_PER_NODE + 1) + offset;
-    //     else if (current_level > 0 && ((counter / KEYS_PER_NODE) * (KEYS_PER_NODE + 1) + offset) <= (int32_t)non_leaf_nodes[current_level - 1].size())
-    //         node.ptrs[KEYS_PER_NODE] = (counter / KEYS_PER_NODE) * (KEYS_PER_NODE + 1) + offset;
-    // }
+    // Assign offsets, started with 0 at each level
+    node.ptrs[offset] = (counter / constants::KEYS_PER_NODE) * (constants::KEYS_PER_NODE + 1) + offset;
+    node.ptrs[offset + 1] = node.ptrs[offset] + 1; // The next ptr is always one index larger than the first one
+
+    // A node might not be full, so need to count the size
     ++node.size;
     // The counter counts the next element to insert
     ++counter;
 }
 
-void convertToSST(vector<pair<int64_t, int64_t>>& sorted_KV) {
-    vector<vector<BTreeNode>> non_leaf_nodes;
-    vector<int32_t> counters;
-    int32_t current_level = 0;
-
-    // FIXME: need to exclude padding when scanning!
-    if ((int32_t)sorted_KV.size() % KEYS_PER_NODE != 0) {
-        int32_t padding = KEYS_PER_NODE - ((int32_t)sorted_KV.size() % KEYS_PER_NODE);
-        for (int32_t i = 0; i < padding; ++i) {
-            sorted_KV.emplace_back(sorted_KV.back());
-        }
-    }
-
-
-    int32_t bound;
-    if ((int32_t)sorted_KV.size() / KEYS_PER_NODE % (KEYS_PER_NODE + 1) == 0)
-        bound = (int32_t)sorted_KV.size() - 1;
-    else
-        bound = (int32_t)sorted_KV.size();
-    for (int32_t count = 0; count < bound; ++count) {
-        // These are all non-leaf nodes
-        if (count % KEYS_PER_NODE == KEYS_PER_NODE - 1) {
-            cout << sorted_KV[count].first << endl;
-            insertHelper(non_leaf_nodes, counters, sorted_KV[count].first, sorted_KV, current_level);
-        }
-    }
-
+void print_B_Tree(vector<vector<BTreeNode>>& non_leaf_nodes, vector<pair<int64_t, int64_t>>& sorted_KV) {
+    // Testing SST
     for (int i = (int)non_leaf_nodes.size() - 1; i >= 0; --i) {
         for (auto node : non_leaf_nodes[i]) {
             for (int j = 0; j < node.size; ++j) {
@@ -127,17 +97,84 @@ void convertToSST(vector<pair<int64_t, int64_t>>& sorted_KV) {
     int i = 1;
     for (auto kv : sorted_KV) {
         cout << "{" << kv.first << "} ";
-        if (i % KEYS_PER_NODE == 0) cout << "     ";
+        if (i % constants::KEYS_PER_NODE == 0) cout << "     ";
         ++i;
     }
     cout << endl;
 }
 
+void Database::convertToSST(vector<vector<BTreeNode>>& non_leaf_nodes, vector<pair<int64_t, int64_t>>& sorted_KV) {
+    // This counts the number of elements in each level
+    vector<int32_t> counters;
+
+    int32_t padding;
+    int32_t current_level = 0;
+
+    // FIXME: need to exclude padding when scanning!
+    // To make things easier, we pad repeated last element to form a complete leaf node
+    if ((int32_t)sorted_KV.size() % constants::KEYS_PER_NODE != 0) {
+        padding = constants::KEYS_PER_NODE - ((int32_t)sorted_KV.size() % constants::KEYS_PER_NODE);
+        for (int32_t i = 0; i < padding; ++i) {
+            sorted_KV.emplace_back(sorted_KV.back());
+        }
+    }
+
+    // To further simplify, we also send the last element of the last leaf node to its parent
+    int32_t bound;
+    if ((int32_t)sorted_KV.size() / constants::KEYS_PER_NODE % (constants::KEYS_PER_NODE + 1) == 0)
+        // Except this case, where we do not need to worry
+        bound = (int32_t)sorted_KV.size() - 1;
+    else
+        bound = (int32_t)sorted_KV.size();
+
+    // Iterate each leaf element to find all non-leaf elements
+    for (int32_t count = 0; count < bound; ++count) {
+        // These are all elements in non-leaf nodes
+        if (count % constants::KEYS_PER_NODE == constants::KEYS_PER_NODE - 1) {
+            insertHelper(non_leaf_nodes, counters, sorted_KV[count].first, current_level);
+        }
+    }
+
+    // Change ptrs to independent file offsets
+    int32_t off = 0;
+    for (int32_t i = (int32_t)non_leaf_nodes.size() - 1; i >= 0; --i) {
+        vector<BTreeNode>& level = non_leaf_nodes[i];
+        int32_t next_size;
+        // Calculate # of nodes in next level
+        if (i >= 1) {
+            next_size = (int32_t)non_leaf_nodes[i - 1].size();
+        } else {
+            next_size = (int32_t)sorted_KV.size() / constants::KEYS_PER_NODE;
+        }
+
+        off += (int32_t)level.size() * (int32_t)sizeof(BTreeNode);
+        for (BTreeNode& node : level) {
+            for (int32_t& offset : node.ptrs) {
+                // If offset exceeds bound, set to -1
+                if (offset >= next_size) {
+                    offset = -1;
+                } else {
+                    // If it is the last non-leaf level, need to take offset as multiple of KV stores
+                    if (i == 0) {
+                        offset = offset * constants::KEYS_PER_NODE * constants::PAIR_SIZE + off;
+                    } else {
+                        // Otherwise, just use BTreeNode size
+                        offset = offset * (int32_t)sizeof(BTreeNode) + off;
+                    }
+                }
+            }
+        }
+    }
+    print_B_Tree(non_leaf_nodes, sorted_KV);
+}
+
 // When memtable reaches its capacity, write it into an SST
 string Database::writeToSST() {
     // Content in std::vector is stored contiguously
-    vector<pair<int64_t, int64_t>> sorted_KV;
+    vector<pair<int64_t, int64_t>> sorted_KV; // Stores all non-leaf elements
+    vector<vector<BTreeNode>> non_leaf_nodes; // Stores all leaf elements
     scan_memtable(sorted_KV, memtable->root);
+    convertToSST(non_leaf_nodes, sorted_KV);
 
     // Create file name based on current time
     // TODO: modify file name to a smarter way
@@ -150,8 +187,20 @@ string Database::writeToSST() {
     // FIXME: do we need O_DIRECT for now?
     int fd = open(file_name.c_str(), O_WRONLY | O_CREAT | O_SYNC, 0777);
     assert(fd!=-1);
-    int test = pwrite(fd, (char*)&sorted_KV[0], sorted_KV.size()*constants::PAIR_SIZE, 0);
-    assert(test!=-1);
+
+    int nbytes;
+    int offset = 0;
+    // Write non-leaf levels, starting from root
+    for (int32_t i = (int32_t)non_leaf_nodes.size() - 1; i >= 0; --i) {
+        vector<BTreeNode>& level = non_leaf_nodes[i];
+        nbytes = pwrite(fd, (char*)&level[0], level.size()*sizeof(BTreeNode), offset);
+        assert(nbytes == (int)(level.size()*sizeof(BTreeNode)));
+        offset += nbytes;
+    }
+    // Write clustered leaves
+    nbytes = pwrite(fd, (char*)&sorted_KV[0], sorted_KV.size()*constants::PAIR_SIZE, offset);
+    assert(nbytes == (int)(sorted_KV.size()*constants::PAIR_SIZE));
+
     close(fd);
 
     // Add to the maintained directory list
@@ -182,15 +231,6 @@ void Database::clear_tree() {
     memtable->max_key = numeric_limits<int64_t>::min();
 }
 
-
-void scan_memtable(vector<pair<int64_t, int64_t>>& sorted_KV, Node* root) {
-    if (root != nullptr) {
-        scan_memtable(sorted_KV, root->left);
-        sorted_KV.emplace_back(root->key, root->value);
-        scan_memtable(sorted_KV, root->right);
-    }
-}
-
 int main() {
     Database db(21);
 
@@ -199,10 +239,7 @@ int main() {
         db.put(key, 6);
     }
 
-    vector<pair<int64_t, int64_t>> sorted_KV;
-    scan_memtable(sorted_KV, db.memtable->root);
-
-    convertToSST(sorted_KV);
+    db.put(-1, 1);
 
     return 0;
 }

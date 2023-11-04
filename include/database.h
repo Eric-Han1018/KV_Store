@@ -35,5 +35,6 @@ class Database {
         string writeToSST();
         void scan_memtable(vector<pair<int64_t, int64_t>>& sorted_KV, Node* root);
         void clear_tree();
-        void convertToSST(vector<pair<int64_t, int64_t>>& sorted_KV);
+        void convertToSST(vector<vector<BTreeNode>>& non_leaf_nodes, vector<pair<int64_t, int64_t>>& sorted_KV);
+        void insertHelper(vector<vector<BTreeNode>>& non_leaf_nodes, vector<int32_t>& counters, int64_t& key, int32_t current_level);
 };
