@@ -31,18 +31,37 @@ void Bufferpool::change_maximal_size(size_t new_size){
     maximal_size = new_size;
 }
 
-Result Bufferpool::get(int64_t*& result, const string& p_id){
+Result Bufferpool::get(int64_t*& result, const int64_t& key){
+    string target_id = id_directory[key];
+    const string& p_id = target_id;
+    size_t bucket_index = murmur_hash(p_id) % hash_directory.size();
+    
+    auto frame = search(p_id);
+    if (frame == hash_directory[bucket_index].end()) {
+        if (current_size == maximal_size) {
+            // TODO: evict
+        }
+        return notInMemtable;
+    } else {
+        result = new int64_t(frame->page);
+    }
+    return allGood;
+}
+
+void Bufferpool::insert(const string& p_id, const int64_t& key) {
+    id_directory[key] = p_id;
+    size_t bucket_index = murmur_hash(p_id) % hash_directory.size();
+    hash_directory[bucket_index].push_back(Frame(p_id));
+
+
+}
+
+list<Frame>::iterator Bufferpool::search(const string& p_id) {
     size_t bucket_index = murmur_hash(p_id) % hash_directory.size();
     for (auto frame = hash_directory[bucket_index].begin(); frame != hash_directory[bucket_index].end(); ++frame) {
         if (frame->p_id == p_id) {
-            result = frame->page;
-            return result;
+            return frame;
         }
     }
-    return NotInBufferPool;
-}
-
-void insert(const string& p_id, string data) {
-    size_t bucket_index = murmur_hash(p_id) % hash_directory.size();
-
+    return hash_directory[bucket_index].end();
 }

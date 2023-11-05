@@ -19,10 +19,10 @@ class Frame {
     public:
         string p_id;
         // std::array<int64_t, PAGE_SIZE> page;
-        string page;
+        int64_t page;
         
-        Frame(string p_id){
-            p_id = p_id;
+        Frame(string page_id){
+            p_id = page_id;
             // page.fill(0);
         }
 };
@@ -32,6 +32,7 @@ class Bufferpool {
     public:
         size_t current_size;
         size_t maximal_size;
+        map<int64_t, string> id_directory;
         vector<list<Frame>> hash_directory;
 
         Bufferpool(size_t initial_size, size_t maximal_size):
@@ -41,7 +42,8 @@ class Bufferpool {
 
     private:
         void change_maximal_size(size_t new_maximal_size);
-        Result get(int64_t*& result, const string& p_id);
-        void insert(const string& p_id, string data);
+        Result get(int64_t*& result, const int64_t& key);
+        void insert(const string& p_id, const int64_t& key);
         size_t murmur_hash(const string& key);
+        list<Frame>::iterator search(const string& page_id);
 };
