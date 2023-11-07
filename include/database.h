@@ -6,6 +6,7 @@
 #include <algorithm>
 #include "rbtree.h"
 #include "SST.h"
+#include "aligned_KV_vector.h"
 using namespace std;
 namespace fs = std::filesystem;
 
@@ -33,8 +34,8 @@ class Database {
 
     private:
         string writeToSST();
-        void scan_memtable(vector<pair<int64_t, int64_t>>& sorted_KV, Node* root);
+        void scan_memtable(aligned_KV_vector& sorted_KV, Node* root);
         void clear_tree();
-        int32_t convertToSST(vector<vector<BTreeNode>>& non_leaf_nodes, vector<pair<int64_t, int64_t>>& sorted_KV);
+        int32_t convertToSST(vector<vector<BTreeNode>>& non_leaf_nodes, aligned_KV_vector& sorted_KV);
         void insertHelper(vector<vector<BTreeNode>>& non_leaf_nodes, vector<int32_t>& counters, int64_t& key, int32_t current_level);
 };

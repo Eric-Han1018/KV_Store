@@ -10,6 +10,7 @@
 #include <limits>
 #include <string>
 #include <sstream>
+#include <time.h>
 using namespace std;
 
 // TODO: Insert a key-value pair into the memtable
@@ -86,7 +87,7 @@ void Database::insertHelper(vector<vector<BTreeNode>>& non_leaf_nodes, vector<in
     ++counter;
 }
 
-void print_B_Tree(vector<vector<BTreeNode>>& non_leaf_nodes, vector<pair<int64_t, int64_t>>& sorted_KV) {
+void print_B_Tree(vector<vector<BTreeNode>>& non_leaf_nodes, aligned_KV_vector& sorted_KV) {
     // Testing SST
     for (int i = (int)non_leaf_nodes.size() - 1; i >= 0; --i) {
         for (auto node : non_leaf_nodes[i]) {
@@ -97,11 +98,11 @@ void print_B_Tree(vector<vector<BTreeNode>>& non_leaf_nodes, vector<pair<int64_t
         }
         cout << endl;
     }
-    int i = 1;
-    for (auto kv : sorted_KV) {
+
+    for (int i = 0; i < sorted_KV.size(); ++i) {
+        auto kv = sorted_KV.data[i];
         cout << "{" << kv.first << "} ";
-        if (i % constants::KEYS_PER_NODE == 0) cout << "     ";
-        ++i;
+        if ((i+1) % constants::KEYS_PER_NODE == 0) cout << "     ";
     }
     cout << endl;
 }
@@ -110,7 +111,7 @@ void print_B_Tree(vector<vector<BTreeNode>>& non_leaf_nodes, vector<pair<int64_t
  * SST structure: |root|..next level..|...next level...|....sorted_KV (as leaf)....|
  * Return: offset to leaf level
  */
-int32_t Database::convertToSST(vector<vector<BTreeNode>>& non_leaf_nodes, vector<pair<int64_t, int64_t>>& sorted_KV) {
+int32_t Database::convertToSST(vector<vector<BTreeNode>>& non_leaf_nodes, aligned_KV_vector& sorted_KV) {
     // This counts the number of elements in each level
     vector<int32_t> counters;
 
@@ -137,7 +138,7 @@ int32_t Database::convertToSST(vector<vector<BTreeNode>>& non_leaf_nodes, vector
     for (int32_t count = 0; count < bound; ++count) {
         // These are all elements in non-leaf nodes
         if (count % constants::KEYS_PER_NODE == constants::KEYS_PER_NODE - 1) {
-            insertHelper(non_leaf_nodes, counters, sorted_KV[count].first, current_level);
+            insertHelper(non_leaf_nodes, counters, sorted_KV.data[count].first, current_level);
         }
     }
 
@@ -183,19 +184,13 @@ int32_t Database::convertToSST(vector<vector<BTreeNode>>& non_leaf_nodes, vector
  */
 string Database::writeToSST() {
     // Content in std::vector is stored contiguously
-    vector<pair<int64_t, int64_t>> sorted_KV; // Stores all non-leaf elements
+    aligned_KV_vector sorted_KV; // Stores all non-leaf elements
     vector<vector<BTreeNode>> non_leaf_nodes; // Stores all leaf elements
     scan_memtable(sorted_KV, memtable->root);
 
-    bool to_BTree = (int32_t)sorted_KV.size() > constants::KEYS_PER_NODE; 
     int32_t leaf_offset;
     
-    // DO NOT convert to B-Tree when # keys in KV store is less than node size
-    if (to_BTree) {
-        leaf_offset = convertToSST(non_leaf_nodes, sorted_KV);
-    } else {
-        leaf_offset = 0;
-    }
+    leaf_offset = convertToSST(non_leaf_nodes, sorted_KV);
 
     // Create file name based on current time
     // TODO: modify file name to a smarter way
@@ -206,23 +201,21 @@ string Database::writeToSST() {
 
     // Write data structure to binary file
     // FIXME: do we need O_DIRECT for now?
-    int fd = open(file_name.c_str(), O_WRONLY | O_CREAT | O_SYNC, 0777);
+    int fd = open(file_name.c_str(), O_WRONLY | O_CREAT | O_SYNC | O_DIRECT, 0777);
     assert(fd!=-1);
 
     int nbytes;
     int offset = 0;
-    if (to_BTree) {
-        // Write non-leaf levels, starting from root
-        for (int32_t i = (int32_t)non_leaf_nodes.size() - 1; i >= 0; --i) {
-            vector<BTreeNode>& level = non_leaf_nodes[i];
-            nbytes = pwrite(fd, (char*)&level[0], level.size()*sizeof(BTreeNode), offset);
-            assert(nbytes == (int)(level.size()*sizeof(BTreeNode)));
-            offset += nbytes;
-        }
+    // Write non-leaf levels, starting from root
+    for (int32_t i = (int32_t)non_leaf_nodes.size() - 1; i >= 0; --i) {
+        vector<BTreeNode>& level = non_leaf_nodes[i];
+        nbytes = pwrite(fd, (char*)&level[0], level.size()*sizeof(BTreeNode), offset);
+        assert(nbytes == (int)(level.size()*sizeof(BTreeNode)));
+        offset += nbytes;
     }
     
     // Write clustered leaves
-    nbytes = pwrite(fd, (char*)&sorted_KV[0], sorted_KV.size()*constants::PAIR_SIZE, offset);
+    nbytes = pwrite(fd, (char*)&sorted_KV.data, sorted_KV.size()*constants::PAIR_SIZE, offset);
     assert(nbytes == (int)(sorted_KV.size()*constants::PAIR_SIZE));
 
     close(fd);
@@ -238,7 +231,7 @@ string Database::writeToSST() {
 
 
 // Helper function to recursively perform inorder scan
-void Database::scan_memtable(vector<pair<int64_t, int64_t>>& sorted_KV, Node* root) {
+void Database::scan_memtable(aligned_KV_vector& sorted_KV, Node* root) {
     if (root != nullptr) {
         scan_memtable(sorted_KV, root->left);
         sorted_KV.emplace_back(root->key, root->value);
@@ -256,12 +249,19 @@ void Database::clear_tree() {
 }
 
 // int main() {
-//     Database db(21);
+//     srand (time(NULL));
+//     Database db(constants::MEMTABLE_SIZE);
 
 //     int keys[] = {1, 2, 7, 16, 21, 22, 24, 29, 31, 32, 33, 35, 40, 61, 73, 74, 82, 90, 94, 95, 97, -1, -2};
 //     for (int key : keys) {
 //         db.put(key, 6);
 //     }
+
+//     for (int i = 0; i < constants::MEMTABLE_SIZE; ++i) {
+//         db.put((int64_t)rand(), 6);
+//     }
+//     db.put(-1, 6);
+
 
 //     // Find all existing keys
 //     for (int key : keys) {

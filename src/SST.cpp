@@ -205,7 +205,10 @@ const int32_t SST::scan_helper_BTree(const int& fd, const int64_t& key1, const i
     while (low != high) {
         mid = (low + high) / 2;
         pair<int64_t, int64_t>& cur = leafNode[mid];
-        if (cur.first < key1) {
+        if (cur.first == key1) {
+            low = mid;
+            break;
+        } else if (cur.first < key1) {
             low = mid + 1; // target can only in right half
         } else {
             high = mid; // target can at mid or in left half
@@ -230,7 +233,10 @@ const int32_t SST::scan_helper_Binary(const int& fd, const int64_t& key1, const 
         int ret = pread(fd, (char*)&cur, constants::PAIR_SIZE, mid*constants::PAIR_SIZE + leaf_offset);
         assert(ret == constants::PAIR_SIZE);
 
-        if (cur.first < key1) {
+        if (cur.first == key1) {
+            low = mid;
+            break;
+        } else if (cur.first < key1) {
             low = mid + 1; // target can only in right half
         } else {
             high = mid; // target can at mid or in left half
