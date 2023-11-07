@@ -9,7 +9,7 @@ using namespace std;
 namespace fs = std::filesystem;
 
 // B-Tree non-leaf Node (members stored contiguously)
-typedef struct BTreeNode {
+typedef struct alignas(constants::KEYS_PER_NODE * constants::PAIR_SIZE) BTreeNode {
     int64_t keys[constants::KEYS_PER_NODE] = {0}; // Keys in each node
     int32_t ptrs[constants::KEYS_PER_NODE + 1] = {0}; // File offsets to children
     int32_t size = 0;
