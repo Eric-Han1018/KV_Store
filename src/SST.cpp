@@ -257,6 +257,8 @@ void SST::scan_SST(vector<pair<int64_t, int64_t>>& sorted_KV, const string& file
 
     int32_t start;
     if (use_btree && leaf_offset != 0) {
+        // TODO: add param for searching in buffepool
+        string file_name_offset = combine_filename_offset(file_path, leaf_offset);
         start = scan_helper_BTree(fd, key1, leaf_offset);
     } else {
         start = scan_helper_Binary(fd, key1, num_elements, leaf_offset);
@@ -286,3 +288,32 @@ void SST::scan_SST(vector<pair<int64_t, int64_t>>& sorted_KV, const string& file
 
     close(fd);
 }
+
+// Combine SST file's name + offset
+string SST::combine_filename_offset(const string& full_path, const int32_t& leaf_offset) {
+    size_t lastSlash = full_path.find_last_of('/');
+    size_t lastDot = full_path.find_last_of('.');
+    
+    string file_name = full_path.substr(lastSlash + 1, lastDot - lastSlash - 1);
+    
+    // Combine the extracted part with leaf_offset into a string
+    stringstream combinedString;
+    combinedString << file_name << "_" << leaf_offset;
+    string result = combinedString.str();
+    
+    // Print the result
+    return result;
+}
+
+// bool get_from_buffer_or_storage(const string& p_id, int fd, off_t offset) {
+//     // Try to get data from the buffer
+//     BTreeLeafNode leafNode;
+    
+//     if (get_from_buffer(p_id, (char*)&leafNode)) {
+//         return true; // Data found in the buffer
+//     } 
+//     else {
+//         // Data not found in the buffer, read it from storage
+//         int ret = pread(fd, (char*)&leafNode, constants::KEYS_PER_NODE * constants::PAIR_SIZE, offset);
+//     }
+// }

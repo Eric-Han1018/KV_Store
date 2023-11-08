@@ -43,4 +43,5 @@ class SST {
         void scan_SST(vector<pair<int64_t, int64_t>>& sorted_KV, const string& file_path, const int64_t& key1, const int64_t& key2, const int32_t& leaf_offset, const bool& use_btree);
         const int32_t scan_helper_BTree(const int& fd, const int64_t& key1, const int32_t& leaf_offset);
         const int32_t scan_helper_Binary(const int& fd, const int64_t& key1, const int32_t& num_elements, const int32_t& leaf_offset);
+        string combine_filename_offset(const string& file_name, const int32_t&);
 };

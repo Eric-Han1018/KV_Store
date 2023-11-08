@@ -6,6 +6,7 @@
 #include <algorithm>
 #include "rbtree.h"
 #include "SST.h"
+#include "bufferpool.h"
 #include "aligned_KV_vector.h"
 using namespace std;
 namespace fs = std::filesystem;
@@ -14,11 +15,13 @@ class Database {
     public:
         RBTree* memtable;
         SST* sst;
+        Bufferpool* bufferpool;
 
 
-        Database(size_t memtable_capacity, Node* memtable_root=nullptr) {
+        Database(size_t memtable_capacity, Node* memtable_root=nullptr, size_t bufferpool_size = 2) {
             memtable = new RBTree(memtable_capacity, memtable_root);
             sst = new SST();
+            bufferpool = new Bufferpool(bufferpool_size, bufferpool_size);
         }
 
         ~Database() {
