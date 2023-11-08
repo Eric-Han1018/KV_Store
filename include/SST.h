@@ -15,6 +15,10 @@ typedef struct alignas(constants::KEYS_PER_NODE * constants::PAIR_SIZE) BTreeNod
     int32_t size = 0;
 } BTreeNode;
 
+typedef struct alignas(constants::KEYS_PER_NODE * constants::PAIR_SIZE) BTreeLeafNode {
+    pair<int64_t, int64_t> data[constants::KEYS_PER_NODE];
+} BTreeLeafNode;
+
 class SST {
     public:
         vector<fs::path> sorted_dir; // The sorted list of all SST files (ascending order, need to reverse when iterate)

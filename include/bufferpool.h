@@ -12,14 +12,15 @@
 using namespace std;
 namespace fs = std::filesystem;
 
-class Frame {
+class Bucket {
     public:
         string p_id;
-        BTreeNode btree_node;
+        bool leaf_page;
+        char* data;
+        bool clock_bit;
         
-        Frame(string page_id, BTreeNode btree_node):
-            p_id(page_id), btree_node(btree_node) {}
-
+        Bucket(string page_id, bool leaf_page, char* data):
+            p_id(page_id), leaf_page(leaf_page), data(data), clock_bit(true) {}
 };
 
 
@@ -27,15 +28,18 @@ class Bufferpool {
     public:
         size_t current_size;
         size_t maximal_size;
-
-        vector<list<Frame>> hash_directory;
+        vector<list<Bucket>> hash_directory;
+        int clock_hand;
 
         Bufferpool(size_t initial_size, size_t maximal_size):
-            current_size(initial_size), maximal_size(maximal_size), hash_directory(initial_size) {}
+            current_size(initial_size), maximal_size(maximal_size), hash_directory(initial_size), clock_hand(0) {}
 
         ~Bufferpool() {}
 
     private:
-        void change_maximal_size(size_t new_maximal_size);
         size_t murmur_hash(const string& key);
+        void change_maximal_size(size_t new_maximal_size);
+        void insert_to_buffer(const string& p_id, bool leaf_page, char* data);
+        bool get_from_buffer(const string& p_id, char*& data);
+        void evict_clock(int num_pages);
 };

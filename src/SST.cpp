@@ -90,8 +90,8 @@ const int64_t* SST::search_SST_BTree(int& fd, const int64_t& key, const int32_t&
     // Search BTree non-leaf nodes to find the offset of leaf
     const int32_t offset = search_BTree_non_leaf_nodes(fd, key, leaf_offset);
     // Binary search in the leaf node
-    pair<int64_t, int64_t> leafNode[constants::KEYS_PER_NODE];
-    int ret = pread(fd, (char*)&leafNode[0], constants::KEYS_PER_NODE * constants::PAIR_SIZE, offset);
+    BTreeLeafNode leafNode;
+    int ret = pread(fd, (char*)&leafNode, constants::KEYS_PER_NODE * constants::PAIR_SIZE, offset);
     assert(ret == constants::KEYS_PER_NODE * constants::PAIR_SIZE);
 
     int low = 0;
@@ -100,7 +100,7 @@ const int64_t* SST::search_SST_BTree(int& fd, const int64_t& key, const int32_t&
 
     while (low <= high) {
         mid = (low + high) / 2;
-        pair<int64_t, int64_t> cur = leafNode[mid];
+        pair<int64_t, int64_t> cur = leafNode.data[mid];
         if (cur.first == key) {
             return new int64_t(cur.second);
         } else if (cur.first > key) {
@@ -194,8 +194,8 @@ void SST::scan(vector<pair<int64_t, int64_t>>*& sorted_KV, const int64_t& key1, 
 const int32_t SST::scan_helper_BTree(const int& fd, const int64_t& key1, const int32_t& leaf_offset) {
     int32_t offset = search_BTree_non_leaf_nodes(fd, key1, leaf_offset);
 
-    pair<int64_t, int64_t> leafNode[constants::KEYS_PER_NODE];
-    int ret = pread(fd, (char*)&leafNode[0], constants::KEYS_PER_NODE * constants::PAIR_SIZE, offset);
+    BTreeLeafNode leafNode;
+    int ret = pread(fd, (char*)&leafNode, constants::KEYS_PER_NODE * constants::PAIR_SIZE, offset);
     assert(ret == constants::KEYS_PER_NODE * constants::PAIR_SIZE);
 
     int low = 0;
@@ -204,7 +204,7 @@ const int32_t SST::scan_helper_BTree(const int& fd, const int64_t& key1, const i
 
     while (low != high) {
         mid = (low + high) / 2;
-        pair<int64_t, int64_t>& cur = leafNode[mid];
+        pair<int64_t, int64_t>& cur = leafNode.data[mid];
         if (cur.first == key1) {
             low = mid;
             break;
