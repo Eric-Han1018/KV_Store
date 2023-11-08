@@ -31,8 +31,12 @@ class Bufferpool {
         vector<list<Bucket>> hash_directory;
         int clock_hand;
 
-        Bufferpool(size_t initial_size, size_t maximal_size):
-            current_size(initial_size), maximal_size(maximal_size), hash_directory(initial_size), clock_hand(0) {}
+        Bufferpool(size_t max_size){
+            current_size = 0;
+            maximal_size = max_size;
+            hash_directory.resize(10);
+            clock_hand = 0;
+        }
 
         ~Bufferpool() {}
 

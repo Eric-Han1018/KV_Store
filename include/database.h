@@ -20,7 +20,7 @@ class Database {
 
         Database(size_t memtable_capacity, Node* memtable_root=nullptr, size_t bufferpool_size = 2) {
             memtable = new RBTree(memtable_capacity, memtable_root);
-            bufferpool = new Bufferpool(bufferpool_size, bufferpool_size);
+            bufferpool = new Bufferpool(bufferpool_size);
             sst = new SST(bufferpool);
         }
 

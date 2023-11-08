@@ -46,5 +46,5 @@ class SST {
         const int32_t scan_helper_BTree(const int& fd, const fs::path& file_path, const int64_t& key1, const int32_t& leaf_offset);
         const int32_t scan_helper_Binary(const int& fd, const fs::path& file_path, const int64_t& key1, const int32_t& num_elements, const int32_t& leaf_offset);
         const string parse_pid(const string& file_name, const int32_t&);
-        char* read(const string& file_path, int fd, off_t offset);
+        void read(const string& file_path, int fd, char* data, off_t offset);
 };

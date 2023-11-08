@@ -45,9 +45,12 @@ void Bufferpool::insert_to_buffer(const string& p_id, bool leaf_page, char* data
 bool Bufferpool::get_from_buffer(const string& p_id, char*& data) {
     // TODO: Check if evict or extend is needed
     size_t index = murmur_hash(p_id) % hash_directory.size();
+    if (hash_directory[index].empty()){
+        return false;
+    }
     for (Bucket bucket : hash_directory[index]) {
         if (bucket.p_id == p_id) {
-            data = hash_directory[index].end()->data;
+            data = bucket.data;
             bucket.clock_bit = true;
             return true;
         }
