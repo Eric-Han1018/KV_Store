@@ -5,6 +5,7 @@
 #include <set>
 #include <algorithm>
 #include "constants.h"
+#include "bufferpool.h"
 using namespace std;
 namespace fs = std::filesystem;
 
@@ -22,8 +23,9 @@ typedef struct alignas(constants::KEYS_PER_NODE * constants::PAIR_SIZE) BTreeLea
 class SST {
     public:
         vector<fs::path> sorted_dir; // The sorted list of all SST files (ascending order, need to reverse when iterate)
+        Bufferpool* buffer;
 
-        SST() {
+        SST(Bufferpool* buffer = nullptr) : buffer(buffer) {
             // Get a sorted list of existing SST files
             for (auto& file_path : fs::directory_iterator(constants::DATA_FOLDER)) {
                 sorted_dir.push_back(file_path);
@@ -36,12 +38,13 @@ class SST {
 
     private:
         const int64_t* search_SST(const fs::path& file_path, const int64_t& key, const int32_t& leaf_offset, const bool& use_btree);
-        const int64_t* search_SST_BTree(int& fd, const int64_t& key, const int32_t& leaf_offset);
+        const int64_t* search_SST_BTree(int& fd, const fs::path& file_path, const int64_t& key, const int32_t& leaf_offset);
         const int64_t* search_SST_Binary(int& fd, const fs::path& file_path, const int64_t& key, const int32_t& leaf_offset);
-        const int32_t search_BTree_non_leaf_nodes(const int& fd, const int64_t& key, const int32_t& leaf_offset);
+        const int32_t search_BTree_non_leaf_nodes(const int& fd, const fs::path& file_path, const int64_t& key, const int32_t& leaf_offset);
         void parse_SST_name(const string& file_name, int64_t& min_key, int64_t& max_key, int32_t& leaf_offset);
         void scan_SST(vector<pair<int64_t, int64_t>>& sorted_KV, const string& file_path, const int64_t& key1, const int64_t& key2, const int32_t& leaf_offset, const bool& use_btree);
-        const int32_t scan_helper_BTree(const int& fd, const int64_t& key1, const int32_t& leaf_offset);
-        const int32_t scan_helper_Binary(const int& fd, const int64_t& key1, const int32_t& num_elements, const int32_t& leaf_offset);
-        string combine_filename_offset(const string& file_name, const int32_t&);
+        const int32_t scan_helper_BTree(const int& fd, const fs::path& file_path, const int64_t& key1, const int32_t& leaf_offset);
+        const int32_t scan_helper_Binary(const int& fd, const fs::path& file_path, const int64_t& key1, const int32_t& num_elements, const int32_t& leaf_offset);
+        const string parse_pid(const string& file_name, const int32_t&);
+        char* read(const string& file_path, int fd, off_t offset);
 };

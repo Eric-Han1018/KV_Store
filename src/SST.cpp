@@ -52,32 +52,34 @@ void SST::parse_SST_name(const string& file_name, int64_t& min_key, int64_t& max
 }
 
 // Search in BTree non-leaf nodes to find the offset of the leaf
-const int32_t SST::search_BTree_non_leaf_nodes(const int& fd, const int64_t& key, const int32_t& leaf_offset) {
+const int32_t SST::search_BTree_non_leaf_nodes(const int& fd, const fs::path& file_path, const int64_t& key, const int32_t& leaf_offset) {
     int32_t offset = 0;
-    BTreeNode curNode;
+    BTreeNode* curNode;
 
     // Traverse B-Tree non-leaf nodes
     while (offset < leaf_offset) {
         // Read corresponding node
-        int ret = pread(fd, (char*)&curNode, sizeof(BTreeNode), offset);
-        assert(ret == sizeof(BTreeNode));
+        char* data = read(file_path.c_str(), fd, offset);
+        curNode = reinterpret_cast<BTreeNode*>(data);
+        // int ret = pread(fd, (char*)&curNode, sizeof(BTreeNode), offset);
+        // assert(ret == sizeof(BTreeNode));
 
         // Binary search
         int low = 0;
-        int high = curNode.size - 1;
+        int high = curNode->size - 1;
         int mid;
         while (low < high) {
             mid = (low + high) / 2;
-            if (curNode.keys[mid] < key) {
+            if (curNode->keys[mid] < key) {
                 low = mid + 1;
             } else {
                 high = mid;
             }
         }
-        if (curNode.keys[low] < key) {
-            offset = curNode.ptrs[curNode.size];
+        if (curNode->keys[low] < key) {
+            offset = curNode->ptrs[curNode->size];
         } else {
-            offset = curNode.ptrs[low];
+            offset = curNode->ptrs[low];
         }
         
     }
@@ -86,13 +88,14 @@ const int32_t SST::search_BTree_non_leaf_nodes(const int& fd, const int64_t& key
 }
 
 // Perform BTree search in SST
-const int64_t* SST::search_SST_BTree(int& fd, const int64_t& key, const int32_t& leaf_offset) {
+const int64_t* SST::search_SST_BTree(int& fd, const fs::path& file_path, const int64_t& key, const int32_t& leaf_offset) {
     // Search BTree non-leaf nodes to find the offset of leaf
-    const int32_t offset = search_BTree_non_leaf_nodes(fd, key, leaf_offset);
+    const int32_t offset = search_BTree_non_leaf_nodes(fd, file_path, key, leaf_offset);
     // Binary search in the leaf node
-    BTreeLeafNode leafNode;
-    int ret = pread(fd, (char*)&leafNode, constants::KEYS_PER_NODE * constants::PAIR_SIZE, offset);
-    assert(ret == constants::KEYS_PER_NODE * constants::PAIR_SIZE);
+    char* data = read(file_path.c_str(), fd, offset);
+    BTreeLeafNode *leafNode = reinterpret_cast<BTreeLeafNode*>(data);
+    // int ret = pread(fd, (char*)&leafNode, constants::KEYS_PER_NODE * constants::PAIR_SIZE, offset);
+    // assert(ret == constants::KEYS_PER_NODE * constants::PAIR_SIZE);
 
     int low = 0;
     int high = constants::KEYS_PER_NODE - 1;
@@ -100,7 +103,7 @@ const int64_t* SST::search_SST_BTree(int& fd, const int64_t& key, const int32_t&
 
     while (low <= high) {
         mid = (low + high) / 2;
-        pair<int64_t, int64_t> cur = leafNode.data[mid];
+        pair<int64_t, int64_t> cur = leafNode->data[mid];
         if (cur.first == key) {
             return new int64_t(cur.second);
         } else if (cur.first > key) {
@@ -153,7 +156,7 @@ const int64_t* SST::search_SST(const fs::path& file_path, const int64_t& key, co
     assert(fd != -1);
 
     if (use_btree && leaf_offset != 0) {
-        result = search_SST_BTree(fd, key, leaf_offset);
+        result = search_SST_BTree(fd, file_path, key, leaf_offset);
     } else {
         result = search_SST_Binary(fd, file_path, key, leaf_offset);
     }
@@ -191,12 +194,13 @@ void SST::scan(vector<pair<int64_t, int64_t>>*& sorted_KV, const int64_t& key1, 
     }
 }
 
-const int32_t SST::scan_helper_BTree(const int& fd, const int64_t& key1, const int32_t& leaf_offset) {
-    int32_t offset = search_BTree_non_leaf_nodes(fd, key1, leaf_offset);
+const int32_t SST::scan_helper_BTree(const int& fd, const fs::path& file_path, const int64_t& key1, const int32_t& leaf_offset) {
+    int32_t offset = search_BTree_non_leaf_nodes(fd, file_path, key1, leaf_offset);
 
-    BTreeLeafNode leafNode;
-    int ret = pread(fd, (char*)&leafNode, constants::KEYS_PER_NODE * constants::PAIR_SIZE, offset);
-    assert(ret == constants::KEYS_PER_NODE * constants::PAIR_SIZE);
+    char* data = read(file_path.c_str(), fd, offset);
+    BTreeLeafNode *leafNode = reinterpret_cast<BTreeLeafNode*>(data);
+    // int ret = pread(fd, (char*)&leafNode, constants::KEYS_PER_NODE * constants::PAIR_SIZE, offset);
+    // assert(ret == constants::KEYS_PER_NODE * constants::PAIR_SIZE);
 
     int low = 0;
     int high = constants::KEYS_PER_NODE - 1;
@@ -204,7 +208,7 @@ const int32_t SST::scan_helper_BTree(const int& fd, const int64_t& key1, const i
 
     while (low != high) {
         mid = (low + high) / 2;
-        pair<int64_t, int64_t>& cur = leafNode.data[mid];
+        pair<int64_t, int64_t>& cur = leafNode->data[mid];
         if (cur.first == key1) {
             low = mid;
             break;
@@ -218,7 +222,7 @@ const int32_t SST::scan_helper_BTree(const int& fd, const int64_t& key1, const i
     return (int)((offset - leaf_offset) / constants::PAIR_SIZE) + low;
 }
 
-const int32_t SST::scan_helper_Binary(const int& fd, const int64_t& key1, const int32_t& num_elements, const int32_t& leaf_offset) {
+const int32_t SST::scan_helper_Binary(const int& fd, const fs::path& file_path, const int64_t& key1, const int32_t& num_elements, const int32_t& leaf_offset) {
     // Variables used in binary search
     pair<int64_t, int64_t> cur;
     int low = 0;
@@ -257,11 +261,9 @@ void SST::scan_SST(vector<pair<int64_t, int64_t>>& sorted_KV, const string& file
 
     int32_t start;
     if (use_btree && leaf_offset != 0) {
-        // TODO: add param for searching in buffepool
-        string file_name_offset = combine_filename_offset(file_path, leaf_offset);
-        start = scan_helper_BTree(fd, key1, leaf_offset);
+        start = scan_helper_BTree(fd, file_path, key1, leaf_offset);
     } else {
-        start = scan_helper_Binary(fd, key1, num_elements, leaf_offset);
+        start = scan_helper_Binary(fd, file_path, key1, num_elements, leaf_offset);
     }
 
     // Low and high both points to what we are looking for
@@ -289,31 +291,30 @@ void SST::scan_SST(vector<pair<int64_t, int64_t>>& sorted_KV, const string& file
     close(fd);
 }
 
-// Combine SST file's name + offset
-string SST::combine_filename_offset(const string& full_path, const int32_t& leaf_offset) {
-    size_t lastSlash = full_path.find_last_of('/');
-    size_t lastDot = full_path.find_last_of('.');
+// Combine SST file's name with offset to get the page ID
+const string SST::parse_pid(const string& file_path, const int32_t& offset) {
+    size_t lastSlash = file_path.find_last_of('/');
+    size_t lastDot = file_path.find_last_of('.');
+    string file_name = file_path.substr(lastSlash + 1, lastDot - lastSlash - 1);
     
-    string file_name = full_path.substr(lastSlash + 1, lastDot - lastSlash - 1);
-    
-    // Combine the extracted part with leaf_offset into a string
+    // Combine the extracted part with offset into a string
     stringstream combinedString;
-    combinedString << file_name << "_" << leaf_offset;
-    string result = combinedString.str();
-    
-    // Print the result
-    return result;
+    combinedString << file_name << "_" << offset;
+    return combinedString.str();
 }
 
-// bool get_from_buffer_or_storage(const string& p_id, int fd, off_t offset) {
-//     // Try to get data from the buffer
-//     BTreeLeafNode leafNode;
+// Read either from bufferpool or SST
+char* SST::read(const string& file_path, int fd, off_t offset) {
+    // Get PageId
+    const string p_id = parse_pid(file_path, offset);
+    char* data;
     
-//     if (get_from_buffer(p_id, (char*)&leafNode)) {
-//         return true; // Data found in the buffer
-//     } 
-//     else {
-//         // Data not found in the buffer, read it from storage
-//         int ret = pread(fd, (char*)&leafNode, constants::KEYS_PER_NODE * constants::PAIR_SIZE, offset);
-//     }
-// }
+    if (buffer->get_from_buffer(p_id, data)) {
+        return data;
+    } else {
+        int ret = pread(fd, (char*)&data, constants::KEYS_PER_NODE * constants::PAIR_SIZE, offset);
+        assert(ret == constants::KEYS_PER_NODE * constants::PAIR_SIZE);
+        // assertion?
+        return data;
+    }
+}

@@ -36,10 +36,11 @@ class Bufferpool {
 
         ~Bufferpool() {}
 
-    private:
-        size_t murmur_hash(const string& key);
         void change_maximal_size(size_t new_maximal_size);
         void insert_to_buffer(const string& p_id, bool leaf_page, char* data);
         bool get_from_buffer(const string& p_id, char*& data);
+
+    private:
+        size_t murmur_hash(const string& key);
         void evict_clock(int num_pages);
 };

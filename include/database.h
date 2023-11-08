@@ -20,8 +20,8 @@ class Database {
 
         Database(size_t memtable_capacity, Node* memtable_root=nullptr, size_t bufferpool_size = 2) {
             memtable = new RBTree(memtable_capacity, memtable_root);
-            sst = new SST();
             bufferpool = new Bufferpool(bufferpool_size, bufferpool_size);
+            sst = new SST(bufferpool);
         }
 
         ~Database() {
@@ -29,6 +29,7 @@ class Database {
             delete sst;
             memtable = nullptr;
             sst = nullptr;
+            bufferpool = nullptr;
         }
 
         void put(const int64_t& key, const int64_t& value);
