@@ -20,7 +20,7 @@ class Bucket {
         bool clock_bit;
         
         Bucket(string page_id, bool leaf_page, char* data):
-            p_id(page_id), leaf_page(leaf_page), data(data), clock_bit(true) {}
+            p_id(page_id), leaf_page(leaf_page), data(move(data)), clock_bit(true) {}
 };
 
 
@@ -43,6 +43,7 @@ class Bufferpool {
         void change_maximal_size(size_t new_maximal_size);
         void insert_to_buffer(const string& p_id, bool leaf_page, char* data);
         bool get_from_buffer(const string& p_id, char*& data);
+        void print();
 
     private:
         size_t murmur_hash(const string& key);
