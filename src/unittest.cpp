@@ -101,7 +101,11 @@ void test_put(string db_name)
     inorderKey(db.memtable->root);
     cout << "\ntree-graph for color - 0 black, 1 red:" << endl;
     inorderColor(db.memtable->root);
-    cout << "\n--- test case 2: Test put() with exceeding tree capacity ---" << endl;
+    cout << "\n--- test case 2: Test put() with same key, update the value ---" << endl;
+    db.put(1, 100);
+    const int64_t* value = db.get(1, true);
+    assert(*value == 100);
+    cout << "\n--- test case 3: Test put() with exceeding tree capacity ---" << endl;
     db.put(-1, -10);
 
     db.closeDB();
@@ -190,6 +194,40 @@ void test_bufferpool(string db_name){
     }
     db.bufferpool->print();
     db.closeDB();
+}
+
+void test_bufferpool(){
+    Database db(constants::MEMTABLE_SIZE);
+    int keys[constants::MEMTABLE_SIZE];
+
+    for (int i = 0; i < constants::MEMTABLE_SIZE; ++i) {
+        keys[i] = (int64_t)rand();
+        db.put(keys[i], 6);
+    }
+    db.put(-1, 6);
+    int n = 0;
+    // Find all existing keys
+    for (int key : keys) {
+        if(n == 1000){
+            break;
+        }
+        const int64_t* value = db.get(key, true);
+        if (value != nullptr){
+            cout << "Found: " << key << "->" << *value << endl;
+        }
+        n++;
+    }
+    for (int key : keys) {
+        if(n == 500){
+            break;
+        }
+        const int64_t* value = db.get(key, true);
+        if (value != nullptr){
+            cout << "Found: " << key << "->" << *value << endl;
+        }
+        n--;
+    }
+    db.bufferpool->print();
 }
 
 int main(int argc, char **argv) {
