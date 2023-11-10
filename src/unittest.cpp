@@ -147,6 +147,40 @@ void test_scan(){
     delete values;
 }
 
+void test_bufferpool(){
+    Database db(constants::MEMTABLE_SIZE);
+    int keys[constants::MEMTABLE_SIZE];
+
+    for (int i = 0; i < constants::MEMTABLE_SIZE; ++i) {
+        keys[i] = (int64_t)rand();
+        db.put(keys[i], 6);
+    }
+    db.put(-1, 6);
+    int n = 0;
+    // Find all existing keys
+    for (int key : keys) {
+        if(n == 1000){
+            break;
+        }
+        const int64_t* value = db.get(key, true);
+        if (value != nullptr){
+            cout << "Found: " << key << "->" << *value << endl;
+        }
+        n++;
+    }
+    for (int key : keys) {
+        if(n == 500){
+            break;
+        }
+        const int64_t* value = db.get(key, true);
+        if (value != nullptr){
+            cout << "Found: " << key << "->" << *value << endl;
+        }
+        n--;
+    }
+    db.bufferpool->print();
+}
+
 int main(int argc, char **argv) {
     cout << "\n===== Test Put(key, value) =====\n" << endl;
     test_put();
@@ -159,6 +193,8 @@ int main(int argc, char **argv) {
     cout << "\n===== Test Scan(Key1, Key2) =====\n" << endl;
     test_scan();
     cout << "\nTest Scan(Key1, Key2) passed; Now deleting all SSTs...\n" << endl;
+    cout << "\n===== Test BufferPool =====\n" << endl;
+    test_bufferpool();
     deleteSSTs(constants::DATA_FOLDER);
     cout << "\nAll Tests Passed!\n" << endl;
     return 0;
