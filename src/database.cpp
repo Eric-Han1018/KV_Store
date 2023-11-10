@@ -13,6 +13,34 @@
 #include <time.h>
 using namespace std;
 
+
+void Database::openDB(const string db_name) {
+    this->db_name = db_name;
+    fs::path directoryPath = constants::DATA_FOLDER + db_name;
+
+    if (fs::exists(directoryPath) && fs::is_directory(directoryPath)) {
+        std::cout << "Directory exists." << db_name << std::endl;
+    } else {
+        std::cout << "Directory does not exist." << db_name <<  std::endl;
+        fs::create_directory(directoryPath);
+    }
+    memtable = new RBTree(memtable_capacity, memtable_root);
+    bufferpool = new Bufferpool(constants::BUFFER_POOL_CAPACITY);
+    sst = new SST(db_name, bufferpool);
+}
+
+void Database::closeDB() {
+    if (memtable->memtable_size > 0) {
+        string file_path = writeToSST();
+    }
+    if (sst) {
+        delete sst;
+    }
+    if (bufferpool) {
+        delete bufferpool;
+    }
+}
+
 // TODO: Insert a key-value pair into the memtable
 void Database::put(const int64_t& key, const int64_t& value) {
     if (memtable->put(key, value) == memtableFull) {
@@ -194,7 +222,7 @@ string Database::writeToSST() {
 
     // Create file name based on current time
     // TODO: modify file name to a smarter way
-    string file_name = constants::DATA_FOLDER;
+    string file_name = constants::DATA_FOLDER + db_name + '/';
     time_t current_time = time(0);
     clock_t current_clock = clock(); // In case there is a tie in time()
     file_name.append(to_string(current_time)).append(to_string(current_clock)).append("_").append(to_string(memtable->min_key)).append("_").append(to_string(memtable->max_key)).append("_").append(to_string(leaf_offset)).append(".bytes");

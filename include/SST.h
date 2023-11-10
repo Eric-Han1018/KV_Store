@@ -22,12 +22,13 @@ typedef struct alignas(constants::KEYS_PER_NODE * constants::PAIR_SIZE) BTreeLea
 
 class SST {
     public:
+        string db_name;
         vector<fs::path> sorted_dir; // The sorted list of all SST files (ascending order, need to reverse when iterate)
         Bufferpool* buffer;
 
-        SST(Bufferpool* buffer = nullptr) : buffer(buffer) {
+        SST(string db_name, Bufferpool* buffer = nullptr) : db_name(db_name), buffer(buffer) {
             // Get a sorted list of existing SST files
-            for (auto& file_path : fs::directory_iterator(constants::DATA_FOLDER)) {
+            for (auto& file_path : fs::directory_iterator(constants::DATA_FOLDER + db_name + '/')) {
                 sorted_dir.push_back(file_path);
             }
             sort(sorted_dir.begin(), sorted_dir.end());

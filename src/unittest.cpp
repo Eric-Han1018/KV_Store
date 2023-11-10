@@ -42,9 +42,10 @@ void inorderColor(Node* node, int indent=0)
     }
 }
 
-void test_get()
+void test_get(string db_name)
 {   
     Database db(2); // Example with memtable_size 2
+    db.openDB(db_name);
 
     cout << "--- test case 1: Test get() from memtable ---" << endl;
     // random insert
@@ -79,11 +80,14 @@ void test_get()
     } else {
         cout << "Not found Key: " << key << endl;
     }
+
+    db.closeDB();
 }
 
-void test_put()
+void test_put(string db_name)
 {
     Database db(6);
+    db.openDB(db_name);
 
     cout << "--- test case 1:  Test put() without exceeding tree capacity ---" << endl;
     // random insert
@@ -99,10 +103,13 @@ void test_put()
     inorderColor(db.memtable->root);
     cout << "\n--- test case 2: Test put() with exceeding tree capacity ---" << endl;
     db.put(-1, -10);
+
+    db.closeDB();
 }
 
-void test_scan(){
+void test_scan(string db_name){
     Database db(6);
+    db.openDB(db_name);
 
     cout << "--- test case 1: Test scan() from memtable ---" << endl;
     // random insert
@@ -144,11 +151,14 @@ void test_scan(){
     assert(is_sorted(values->begin(), values->end()));
     ans = {{2, 20}, {3, 30}, {4, 40}, {5, 50}, {7, 90}, {8, 80}};
     assert(equal(values->begin(), values->end(), ans.begin()));
+
     delete values;
+    db.closeDB();
 }
 
-void test_bufferpool(){
+void test_bufferpool(string db_name){
     Database db(constants::MEMTABLE_SIZE);
+    db.openDB(db_name);
     int keys[constants::MEMTABLE_SIZE];
 
     for (int i = 0; i < constants::MEMTABLE_SIZE; ++i) {
@@ -179,23 +189,28 @@ void test_bufferpool(){
         n--;
     }
     db.bufferpool->print();
+    db.closeDB();
 }
 
 int main(int argc, char **argv) {
+    string db_name = "GaussDB";
     cout << "\n===== Test Put(key, value) =====\n" << endl;
-    test_put();
+    test_put(db_name);
     cout << "\nTest Put(Key, Value) passed; Now deleting all SSTs...\n" << endl;
-    deleteSSTs(constants::DATA_FOLDER);
+    deleteSSTs(constants::DATA_FOLDER + db_name);
     cout << "\n===== Test Get(key) =====\n" << endl;
-    test_get();
+    test_get(db_name);
     cout << "\nTest Get(key) passed; Now deleting all SSTs...\n" << endl;
-    deleteSSTs(constants::DATA_FOLDER);
+    deleteSSTs(constants::DATA_FOLDER + db_name);
+
+    // test with different DB:
+    db_name = "GaussssDB";
     cout << "\n===== Test Scan(Key1, Key2) =====\n" << endl;
-    test_scan();
+    test_scan(db_name);
     cout << "\nTest Scan(Key1, Key2) passed; Now deleting all SSTs...\n" << endl;
     cout << "\n===== Test BufferPool =====\n" << endl;
-    test_bufferpool();
-    deleteSSTs(constants::DATA_FOLDER);
+    test_bufferpool(db_name);
+    deleteSSTs(constants::DATA_FOLDER + db_name);
     cout << "\nAll Tests Passed!\n" << endl;
     return 0;
 }

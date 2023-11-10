@@ -14,24 +14,24 @@ namespace fs = std::filesystem;
 
 class Database {
     public:
+        string db_name;
         RBTree* memtable;
         SST* sst;
         Bufferpool* bufferpool;
+        size_t memtable_capacity;
+        Node* memtable_root;
 
-        Database(size_t memtable_capacity, Node* memtable_root=nullptr) {
-            memtable = new RBTree(memtable_capacity, memtable_root);
-            bufferpool = new Bufferpool(constants::BUFFER_POOL_CAPACITY);
-            sst = new SST(bufferpool);
-        }
+        Database(size_t memtable_capacity, Node* memtable_root=nullptr) :
+            memtable_capacity(memtable_capacity), memtable_root(memtable_root) {}
 
         ~Database() {
-            delete memtable;
-            delete sst;
             memtable = nullptr;
             sst = nullptr;
             bufferpool = nullptr;
         }
 
+        void openDB(const string db_name);
+        void closeDB();
         void put(const int64_t& key, const int64_t& value);
         const int64_t* get(const int64_t& key, const bool use_btree);
         const vector<pair<int64_t, int64_t>>* scan(const int64_t& key1, const int64_t& key2, const bool use_btree);
