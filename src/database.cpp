@@ -229,7 +229,6 @@ string Database::writeToSST() {
     return file_name;
 }
 
-
 // Helper function to recursively perform inorder scan
 void Database::scan_memtable(aligned_KV_vector& sorted_KV, Node* root) {
     if (root != nullptr) {

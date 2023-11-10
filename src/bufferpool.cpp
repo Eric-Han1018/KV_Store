@@ -19,10 +19,11 @@ size_t Bufferpool::murmur_hash(const string& key){
     const int length = key.length();
     uint32_t hash;
     // wolf:~$ uname -m => x86_64
-    MurmurHash3_x64_128(key.c_str(), length, seed, &hash);
+    MurmurHash3_x86_32(key.c_str(), length, seed, &hash);
     return static_cast<size_t>(hash);
 }
 
+// TODO: BONUS - shrink or grow bufferpool
 void Bufferpool::change_maximal_size(size_t new_size){
     if (new_size < current_size) {
         // TODO: evict
@@ -41,34 +42,16 @@ void Bufferpool::insert_to_buffer(const string& p_id, bool leaf_page, char* data
     char* tmp = new char[constants::KEYS_PER_NODE * constants::PAIR_SIZE];
     tmp = data;
 
-    // TODO: evict or extend is needed
-    Bucket bucket(p_id, leaf_page, tmp);
-    hash_directory[index].push_back(bucket);
-    current_size++;
-}
-
-void Bufferpool::print() {
-    cout << "----------- Print Bufferpool -------------- " << endl;
-    for (int i = 0; i < 10; i++) {
-        if (hash_directory[i].empty()){
-            continue;
-        }
-        for (Bucket bucket : hash_directory[i]) {
-            cout << "pid: " << bucket.p_id << endl;
-            if (bucket.leaf_page) {
-                BTreeLeafNode *leafNode = (BTreeLeafNode*) bucket.data;
-                cout << "leafNode: " << leafNode->data[0].first << endl;
-                cout << "leafNode data: " << &leafNode->data << endl;
-
-            } else {
-                BTreeNode *nonLeafNode = (BTreeNode*) bucket.data;
-                cout << "nonLeafNode keys: " << nonLeafNode->keys[0] << endl;
-                cout << "nonLeafNode data: " << &nonLeafNode->keys[0] << endl;
-
-            }
-        }
+    // TODO: further determine when to evict and how many to evict?
+    if(current_size > floor(maximal_size * 0.8)) {
+        cout << "-------------- BEFORE EVICTION, SIZE: " << current_size << endl;
+        evict_clock(floor(current_size * 0.3));
+        cout << "-------------- AFTER EVICTION, SIZE: " << current_size << endl;
     }
-    cout << "----------- Print Bufferpool END-------------- " << endl;
+
+    Frame frame(p_id, leaf_page, tmp);
+    hash_directory[index].push_back(frame);
+    current_size++;
 }
 
 bool Bufferpool::get_from_buffer(const string& p_id, char*& data) {
@@ -78,10 +61,10 @@ bool Bufferpool::get_from_buffer(const string& p_id, char*& data) {
         cout << "----------- GET FROM BUFFER (EMPTY) -------------- " << p_id << endl;
         return false;
     }
-    for (Bucket bucket : hash_directory[index]) {
-        if (bucket.p_id == p_id) {
-            data = bucket.data;
-            bucket.clock_bit = true;
+    for (Frame frame : hash_directory[index]) {
+        if (frame.p_id == p_id) {
+            data = frame.data;
+            frame.clock_bit = true;
             cout << "----------- GET FROM BUFFER (FOUND) -------------- " << p_id << endl;
             return true;
         }
@@ -91,17 +74,40 @@ bool Bufferpool::get_from_buffer(const string& p_id, char*& data) {
 }
 
 void Bufferpool::evict_clock(int num_pages) {
-    while (num_pages > 0 || num_pages > current_size) {
-        for (auto bucket = hash_directory[clock_hand].begin(); bucket != hash_directory[clock_hand].end(); bucket++) {
-            if (bucket->clock_bit) {
-                bucket->clock_bit = false;
+    while (num_pages > 0 && current_size > 0) {
+        for (auto frame = hash_directory[clock_hand].begin(); frame != hash_directory[clock_hand].end(); frame++) {
+            if (frame->clock_bit) {
+                frame->clock_bit = false;
             } else {
-                cout << "evict page: " << bucket->p_id << endl;
-                hash_directory[clock_hand].erase(bucket);
+                // cout << "evict page: " << frame->p_id << endl;
+                frame = hash_directory[clock_hand].erase(frame);
                 current_size--;
                 num_pages--;
             }
         }
         clock_hand = (clock_hand + 1) % hash_directory.size();
     }
+}
+
+void Bufferpool::print() {
+    cout << "----------- Print Bufferpool -------------- " << endl;
+    for (int i = 0; i < 10; i++) {
+        if (hash_directory[i].empty()){
+            continue;
+        }
+        for (Frame frame : hash_directory[i]) {
+            cout << "pid: " << frame.p_id << endl;
+            if (frame.leaf_page) {
+                BTreeLeafNode *leafNode = (BTreeLeafNode*) frame.data;
+                cout << "leafNode: " << leafNode->data[0].first << endl;
+                cout << "leafNode data: " << &leafNode->data << endl;
+
+            } else {
+                BTreeNode *nonLeafNode = (BTreeNode*) frame.data;
+                cout << "nonLeafNode keys: " << nonLeafNode->keys[0] << endl;
+                cout << "nonLeafNode data: " << &nonLeafNode->keys[0] << endl;
+            }
+        }
+    }
+    cout << "----------- Print Bufferpool END-------------- " << endl;
 }

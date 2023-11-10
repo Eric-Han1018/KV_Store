@@ -8,6 +8,7 @@
 #include "SST.h"
 #include "bufferpool.h"
 #include "aligned_KV_vector.h"
+#include "constants.h"
 using namespace std;
 namespace fs = std::filesystem;
 
@@ -17,10 +18,9 @@ class Database {
         SST* sst;
         Bufferpool* bufferpool;
 
-
-        Database(size_t memtable_capacity, Node* memtable_root=nullptr, size_t bufferpool_size = 2) {
+        Database(size_t memtable_capacity, Node* memtable_root=nullptr) {
             memtable = new RBTree(memtable_capacity, memtable_root);
-            bufferpool = new Bufferpool(bufferpool_size);
+            bufferpool = new Bufferpool(constants::BUFFER_POOL_CAPACITY);
             sst = new SST(bufferpool);
         }
 
