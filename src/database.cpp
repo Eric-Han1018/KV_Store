@@ -16,8 +16,10 @@ using namespace std;
 void Database::put(const int64_t& key, const int64_t& value) {
     if (memtable->put(key, value) == memtableFull) {
         string file_path = writeToSST();
-        cout << "Memtable capacity reaches maximum. Data has been " <<
-                "saved to: " << file_path << endl;
+        #ifdef DEBUG
+            cout << "Memtable capacity reaches maximum. Data has been " <<
+                    "saved to: " << file_path << endl;
+        #endif
 
         memtable->put(key, value);
     }
@@ -32,8 +34,10 @@ const int64_t* Database::get(const int64_t& key){
 }
 
 const vector<pair<int64_t, int64_t>>* Database::scan(const int64_t& key1, const int64_t& key2) {
-    // Check if key1 < key2
-    assert(key1 < key2);
+    #ifdef DEBUG
+        // Check if key1 < key2
+        assert(key1 < key2);
+    #endif
 
     vector<pair<int64_t, int64_t>>* sorted_KV = new vector<pair<int64_t, int64_t>>;
 
@@ -62,9 +66,13 @@ string Database::writeToSST() {
     // Write data structure to binary file
     // FIXME: do we need O_DIRECT for now?
     int fd = open(file_name.c_str(), O_WRONLY | O_CREAT | O_SYNC, 0777);
-    assert(fd!=-1);
+    #ifdef DEBUG
+        assert(fd!=-1);
+    #endif
     int test = pwrite(fd, (char*)&sorted_KV[0], sorted_KV.size()*constants::PAIR_SIZE, 0);
-    assert(test!=-1);
+    #ifdef DEBUG
+        assert(test!=-1);
+    #endif
     close(fd);
 
     // Add to the maintained directory list

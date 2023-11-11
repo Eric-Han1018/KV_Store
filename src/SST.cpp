@@ -16,19 +16,25 @@ using namespace std;
 const int64_t* SST::get(const int64_t& key) {
     // Iterate to read each file in descending order (new->old)
     for (auto file_path_itr = sorted_dir.rbegin(); file_path_itr != sorted_dir.rend(); ++file_path_itr) {
-        cout << "Searching in file: " << *file_path_itr << "..." << endl;
+        #ifdef DEBUG
+            cout << "Searching in file: " << *file_path_itr << "..." << endl;
+        #endif
 
         // Skip if the key is not between min_key and max_key
         int64_t min_key, max_key;
         parse_SST_name(*file_path_itr, min_key, max_key);
         if (key < min_key || key > max_key) {
-            cout << "key is not in range of: " << *file_path_itr << endl;
+            #ifdef DEBUG
+                cout << "key is not in range of: " << *file_path_itr << endl;
+            #endif
             continue;
         }
 
         const int64_t* value = search_SST(*file_path_itr, key);
         if (value != nullptr) return value;
-        cout << "Not found key: " << key << " in file: " << *file_path_itr << endl;
+        #ifdef DEBUG
+            cout << "Not found key: " << key << " in file: " << *file_path_itr << endl;
+        #endif
     }
     
     return nullptr;
@@ -61,7 +67,9 @@ const int64_t* SST::search_SST(const fs::path& file_path, const int64_t& key) {
 
     // Open the SST file
     int fd = open(file_path.c_str(), O_RDONLY);
-    assert(fd != -1);
+    #ifdef DEBUG
+        assert(fd != -1);
+    #endif
 
 
     // Binary search
@@ -70,7 +78,9 @@ const int64_t* SST::search_SST(const fs::path& file_path, const int64_t& key) {
         // Do one I/O at each hop
         // FIXME: need to confirm if this is what required
         int ret = pread(fd, (char*)&cur, constants::PAIR_SIZE, mid*constants::PAIR_SIZE);
-        assert(ret == constants::PAIR_SIZE);
+        #ifdef DEBUG
+            assert(ret == constants::PAIR_SIZE);
+        #endif
 
         if (cur.first == key) {
             return new int64_t(cur.second);
@@ -91,12 +101,16 @@ void SST::scan(vector<pair<int64_t, int64_t>>*& sorted_KV, const int64_t& key1, 
 
     // Scan each SST
     for (auto file_path_itr = sorted_dir.rbegin(); file_path_itr != sorted_dir.rend(); ++file_path_itr) {
-        cout << "Scanning file: " << *file_path_itr << "..." << endl;
+        #ifdef DEBUG
+            cout << "Scanning file: " << *file_path_itr << "..." << endl;
+        #endif
         // Skip if the keys is not between min_key and max_key
         int64_t min_key, max_key;
         parse_SST_name(*file_path_itr, min_key, max_key);
         if (key2 < min_key || key1 > max_key) {
-            cout << "key is not in range of: " << *file_path_itr << endl;
+            #ifdef DEBUG
+                cout << "key is not in range of: " << *file_path_itr << endl;
+            #endif
             continue;
         }
 
@@ -127,7 +141,9 @@ void SST::scan_SST(vector<pair<int64_t, int64_t>>& sorted_KV, const string& file
 
     // Open the SST file
     int fd = open(file_path.c_str(), O_RDONLY);
-    assert(fd != -1);
+    #ifdef DEBUG
+        assert(fd != -1);
+    #endif
 
 
     // Binary search to find the first element >= key1
@@ -136,7 +152,9 @@ void SST::scan_SST(vector<pair<int64_t, int64_t>>& sorted_KV, const string& file
         // Do one I/O at each hop
         // FIXME: need to confirm if this is what required
         int ret = pread(fd, (char*)&cur, constants::PAIR_SIZE, mid*constants::PAIR_SIZE);
-        assert(ret == constants::PAIR_SIZE);
+        #ifdef DEBUG
+            assert(ret == constants::PAIR_SIZE);
+        #endif
 
         if (cur.first < key1) {
             low = mid + 1; // target can only in right half
@@ -149,7 +167,9 @@ void SST::scan_SST(vector<pair<int64_t, int64_t>>& sorted_KV, const string& file
     for (auto i=low; i < num_elements ; ++i) {
         // Iterate each element and push to vector
         int ret = pread(fd, (char*)&cur, constants::PAIR_SIZE, i*constants::PAIR_SIZE);
-        assert(ret == constants::PAIR_SIZE);
+        #ifdef DEBUG
+            assert(ret == constants::PAIR_SIZE);
+        #endif
 
         if (cur.first <= key2) {
             sorted_KV.emplace_back(cur);
