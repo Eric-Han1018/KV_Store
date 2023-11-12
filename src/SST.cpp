@@ -83,6 +83,7 @@ const int64_t* SST::search_SST(const fs::path& file_path, const int64_t& key) {
         #endif
 
         if (cur.first == key) {
+            close(fd);
             return new int64_t(cur.second);
         } else if (cur.first > key) {
             high = mid - 1;
