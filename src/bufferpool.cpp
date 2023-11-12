@@ -107,7 +107,7 @@ void Bufferpool::print() {
     #ifdef DEBUG
         cout << "----------- Print Bufferpool -------------- " << endl;
     #endif
-    for (int i = 0; i < 10; i++) {
+    for (int i = 0; i < (int)hash_directory.size(); i++) {
         if (hash_directory[i].empty()){
             continue;
         }
