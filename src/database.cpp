@@ -19,9 +19,13 @@ void Database::openDB(const string db_name) {
     fs::path directoryPath = constants::DATA_FOLDER + db_name;
 
     if (fs::exists(directoryPath) && fs::is_directory(directoryPath)) {
-        std::cout << "Directory exists." << db_name << std::endl;
+        #ifdef DEBUG
+            std::cout << "Directory exists." << db_name << std::endl;
+        #endif
     } else {
-        std::cout << "Directory does not exist." << db_name <<  std::endl;
+        #ifdef DEBUG
+            std::cout << "Directory does not exist." << db_name <<  std::endl;
+        #endif
         fs::create_directory(directoryPath);
     }
     memtable = new RBTree(memtable_capacity, memtable_root);
@@ -45,8 +49,10 @@ void Database::closeDB() {
 void Database::put(const int64_t& key, const int64_t& value) {
     if (memtable->put(key, value) == memtableFull) {
         string file_path = writeToSST();
-        cout << "Memtable capacity reaches maximum. Data has been " <<
-                "saved to: " << file_path << endl;
+        #ifdef DEBUG
+            cout << "Memtable capacity reaches maximum. Data has been " <<
+                    "saved to: " << file_path << endl;
+        #endif
 
         memtable->put(key, value);
     }
@@ -62,7 +68,9 @@ const int64_t* Database::get(const int64_t& key, const bool use_btree){
 
 const vector<pair<int64_t, int64_t>>* Database::scan(const int64_t& key1, const int64_t& key2, const bool use_btree) {
     // Check if key1 < key2
-    assert(key1 < key2);
+    #ifdef ASSERT
+        assert(key1 < key2);
+    #endif
 
     vector<pair<int64_t, int64_t>>* sorted_KV = new vector<pair<int64_t, int64_t>>;
 
@@ -200,7 +208,9 @@ int32_t Database::convertToSST(vector<vector<BTreeNode>>& non_leaf_nodes, aligne
             }
         }
     }
-    print_B_Tree(non_leaf_nodes, sorted_KV);
+    #ifdef DEBUG
+        print_B_Tree(non_leaf_nodes, sorted_KV);
+    #endif
 
     // FIXME: the current implementation is to add a root no matter if the number of KVs exceed a node's capacity
     // return non_leaf_nodes[0][0].size != 0 ? non_leaf_nodes[0][0].ptrs[0] : 0;
@@ -229,8 +239,10 @@ string Database::writeToSST() {
 
     // Write data structure to binary file
     // FIXME: do we need O_DIRECT for now?
-    int fd = open(file_name.c_str(), O_WRONLY | O_CREAT | O_SYNC | O_DIRECT, 0777);
-    assert(fd!=-1);
+    int fd = open(file_name.c_str(), O_WRONLY | O_CREAT | O_SYNC, 0777);
+    #ifdef ASSERT
+        assert(fd!=-1);
+    #endif
 
     int nbytes;
     int offset = 0;
@@ -238,13 +250,17 @@ string Database::writeToSST() {
     for (int32_t i = (int32_t)non_leaf_nodes.size() - 1; i >= 0; --i) {
         vector<BTreeNode>& level = non_leaf_nodes[i];
         nbytes = pwrite(fd, (char*)&level[0], level.size()*sizeof(BTreeNode), offset);
-        assert(nbytes == (int)(level.size()*sizeof(BTreeNode)));
+        #ifdef ASSERT
+            assert(nbytes == (int)(level.size()*sizeof(BTreeNode)));
+        #endif
         offset += nbytes;
     }
     
     // Write clustered leaves
     nbytes = pwrite(fd, (char*)&sorted_KV.data, sorted_KV.size()*constants::PAIR_SIZE, offset);
-    assert(nbytes == (int)(sorted_KV.size()*constants::PAIR_SIZE));
+    #ifdef ASSERT
+        assert(nbytes == (int)(sorted_KV.size()*constants::PAIR_SIZE));
+    #endif
 
     close(fd);
 

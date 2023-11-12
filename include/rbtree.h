@@ -28,7 +28,9 @@ class Node {
             left = nullptr;
             delete right;
             right = nullptr;
-            cout << "Deleted node with key: " << key << endl;
+            #ifdef DEBUG
+                cout << "Deleted node with key: " << key << endl;
+            #endif
         }
 
 };

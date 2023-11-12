@@ -22,7 +22,7 @@ CPPFLAGS := -Iinclude -MMD -MP -std=c++17
 #  -g    adds debugging information to the executable file
 #  -o2 / -o3 to enable optimization
 #  -Wall turns on most, but not all, compiler warnings
-CFLAGS   := -g -Wall
+CFLAGS   := -Wall
 # Pass extra flags to the linker
 # -L	 specify directories where the libraries can be found
 LDFLAGS  := -Llib
@@ -32,9 +32,11 @@ LDLIBS   :=
 
 .PHONY: db test clean
 
+db: CFLAGS += -O3
 db: $(OBJ) | $(BIN_DIR)
 	$(CC) $(LDFLAGS) $(filter-out $(OBJ_DIR)/unittest.o, $(OBJ)) $(LDLIBS) -o $(EXE)
 
+test: CFLAGS += -g -DDEBUG -DASSERT
 test: $(OBJ) | $(BIN_DIR)
 	$(CC) $(LDFLAGS) $(filter-out $(OBJ_DIR)/benchmark.o, $(OBJ)) $(LDLIBS) -o $(TST)
 

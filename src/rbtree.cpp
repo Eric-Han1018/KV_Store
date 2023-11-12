@@ -18,7 +18,10 @@ RBTree::RBTree(size_t capacity, Node* root): root(root), memtable_size{capacity}
     max_key = numeric_limits<int64_t>::min();
 }
 RBTree::~RBTree() {
-    cout << "Deleting tree..." << endl;
+    #ifdef DEBUG
+        cout << "Deleting tree..." << endl;
+    #endif
+    
     delete root;
     root = nullptr;
 }
@@ -49,7 +52,9 @@ Result RBTree::get(int64_t*& result, const int64_t& key) {
     Node* node = search(root, key);
 
     if (node == nullptr) {
-        cout << "Not found Key: " << key << " in memtable. Now searching SSTs..." << endl;
+        #ifdef DEBUG
+            cout << "Not found Key: " << key << " in memtable. Now searching SSTs..." << endl;
+        #endif
         return notInMemtable;
     } else {
         result = new int64_t(node->value);
@@ -281,7 +286,9 @@ void RBTree::insertNode(Node* node) {
     if (node->key < min_key) min_key = node->key;
     else if (node->key > max_key) max_key = node->key;
 
-    cout << "Insert key: " << node->key << " value: " << node->value << endl;
+    #ifdef DEBUG
+        cout << "Insert key: " << node->key << " value: " << node->value << endl;
+    #endif
 }
 
 // TODO: Helper function to delete a node from the Red-Black Tree
