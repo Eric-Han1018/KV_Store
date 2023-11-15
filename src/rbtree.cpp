@@ -28,7 +28,11 @@ RBTree::~RBTree() {
 // TODO: Insert a key-value pair into the memtable
 Result RBTree::put(const int64_t& key, const int64_t& value) {
     // FUTURE-TODO: Check if the key already exists and update its value
-
+    Node* oldNode = search(root, key);
+    if (oldNode) {
+        oldNode->value = value;
+        return allGood;
+    }
     // Check if current tree size reaches maximum, and write to SST
     if (curr_size >= memtable_size) {
         return memtableFull;
