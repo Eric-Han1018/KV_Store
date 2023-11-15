@@ -196,6 +196,54 @@ void test_bufferpool(string db_name){
     db.closeDB();
 }
 
+void test_bufferpool_scan_get_binary(string db_name){
+    Database db(constants::MEMTABLE_SIZE);
+    db.openDB(db_name);
+    int keys[constants::MEMTABLE_SIZE];
+
+    for (int i = 0; i < constants::MEMTABLE_SIZE; ++i) {
+        keys[i] = (int64_t)rand();
+        db.put(keys[i], 6);
+    }
+    db.put(-1, 6);
+    // test get with binary searching
+    cout << "***********Test Get with Binary***********" << endl;
+    int n = 0;
+    for (int key : keys) {
+        if(n == 1000){
+            break;
+        }
+        const int64_t* value = db.get(key, false);
+        if (value != nullptr){
+            cout << "Found: " << key << "->" << *value << endl;
+        }
+        n++;
+    }
+    for (int key : keys) {
+        if(n == 500){
+            break;
+        }
+        const int64_t* value = db.get(key, false);
+        if (value != nullptr){
+            cout << "Found: " << key << "->" << *value << endl;
+        }
+        n--;
+    }
+    // test scan with binary
+    cout << "***********Test Scan with Binary***********" << endl;
+    int64_t key1 = 500000;
+    int64_t key2 = 1000000;
+    const vector<pair<int64_t, int64_t>>* values = db.scan(key1, key2, false);
+    for (const auto& pair : *values) {
+        cout << "Found {Key: " << pair.first << ", Value: " << pair.second << "}" << endl;
+    }
+    assert(is_sorted(values->begin(), values->end()));
+    delete values;
+
+    db.bufferpool->print();
+    db.closeDB();
+}
+
 void test_bufferpool(){
     Database db(constants::MEMTABLE_SIZE);
     int keys[constants::MEMTABLE_SIZE];
@@ -248,6 +296,12 @@ int main(int argc, char **argv) {
     cout << "\nTest Scan(Key1, Key2) passed; Now deleting all SSTs...\n" << endl;
     cout << "\n===== Test BufferPool =====\n" << endl;
     test_bufferpool(db_name);
+    deleteSSTs(constants::DATA_FOLDER + db_name);
+
+    // test with different DB:
+    db_name = "GaussssDD";
+    cout << "\n===== Test BufferPool =====\n" << endl;
+    test_bufferpool_scan_get_binary(db_name);
     deleteSSTs(constants::DATA_FOLDER + db_name);
     cout << "\nAll Tests Passed!\n" << endl;
     return 0;

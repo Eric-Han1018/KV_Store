@@ -13,6 +13,8 @@ namespace constants {
     const int PAIR_SIZE = sizeof(pair<int64_t, int64_t>);
     const string DATA_FOLDER = "./data/";
     const int KEYS_PER_NODE = (1 << 12) / PAIR_SIZE; //4kb node
+    const int PAGE_SIZE = KEYS_PER_NODE * PAIR_SIZE; // 4kb page
     const int MEMTABLE_SIZE = (1 << 20) / PAIR_SIZE; //1mb memtable
     const int BUFFER_POOL_CAPACITY = floor((MEMTABLE_SIZE * 0.1) / KEYS_PER_NODE); //10% of data, 100kb
+    const bool USE_BUFFER_POOL = true;
 }

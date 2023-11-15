@@ -130,20 +130,24 @@ const int64_t* SST::search_SST_Binary(int& fd, const fs::path& file_path, const 
 
     // Variables used in binary search
     pair<int64_t, int64_t> cur;
+    BTreeLeafNode* leafNode;
+    int prevPage = -1;
     int low = 0;
     int high = num_elements - 1;
     int mid;
 
-
     // Binary search
     while (low <= high) {
         mid = (low + high) / 2;
-        // Do one I/O at each hop
-        // FIXME: need to confirm if this is what required
-        int ret = pread(fd, (char*)&cur, constants::PAIR_SIZE, mid*constants::PAIR_SIZE + leaf_offset);
-        #ifdef ASSERT
-            assert(ret == constants::PAIR_SIZE);
-        #endif
+        // Do one I/O per page if not in bufferpool
+        int curPage = floor((mid*constants::PAIR_SIZE) / constants::PAGE_SIZE);
+        if (curPage != prevPage) {
+            char* tmp;
+            read(file_path.c_str(), fd, tmp, leaf_offset + (curPage * constants::PAGE_SIZE), true);
+            leafNode = (BTreeLeafNode*)tmp;
+            prevPage = curPage;
+        }
+        cur = leafNode->data[mid - curPage * constants::KEYS_PER_NODE];
 
         if (cur.first == key) {
             return new int64_t(cur.second);
@@ -238,19 +242,25 @@ const int32_t SST::scan_helper_BTree(const int& fd, const fs::path& file_path, c
 const int32_t SST::scan_helper_Binary(const int& fd, const fs::path& file_path, const int64_t& key1, const int32_t& num_elements, const int32_t& leaf_offset) {
     // Variables used in binary search
     pair<int64_t, int64_t> cur;
+    BTreeLeafNode* leafNode;
     int low = 0;
     int high = num_elements - 1;
     int mid;
+    int prevPage = -1;
 
     // Binary search to find the first element >= key1
     while (low != high) {
         mid = (low + high) / 2;
-        // Do one I/O at each hop
-        // FIXME: need to confirm if this is what required
-        int ret = pread(fd, (char*)&cur, constants::PAIR_SIZE, mid*constants::PAIR_SIZE + leaf_offset);
-        #ifdef ASSERT
-            assert(ret == constants::PAIR_SIZE);
-        #endif
+
+        // Do one I/O per page if not in bufferpool
+        int curPage = floor((mid*constants::PAIR_SIZE) / constants::PAGE_SIZE);
+        if (curPage != prevPage) {
+            char* tmp;
+            read(file_path.c_str(), fd, tmp, leaf_offset + (curPage * constants::PAGE_SIZE), true);
+            leafNode = (BTreeLeafNode*)tmp;
+            prevPage = curPage;
+        }
+        cur = leafNode->data[mid - curPage * constants::KEYS_PER_NODE];
 
         if (cur.first == key1) {
             low = mid;
@@ -286,16 +296,23 @@ void SST::scan_SST(vector<pair<int64_t, int64_t>>& sorted_KV, const string& file
     // Low and high both points to what we are looking for
     pair<int64_t, int64_t> cur;
     int64_t prev;
+    BTreeLeafNode* leafNode;
+    int prevPage = -1;
+
     for (auto i=start; i < num_elements ; ++i) {
         // Record previous key to prevent reading redundant padded values
         if (i > start) {
             prev = cur.first;
         }
         // Iterate each element and push to vector
-        int ret = pread(fd, (char*)&cur, constants::PAIR_SIZE, i*constants::PAIR_SIZE + leaf_offset);
-        #ifdef ASSERT
-            assert(ret == constants::PAIR_SIZE);
-        #endif
+        int curPage = floor((i*constants::PAIR_SIZE) / constants::PAGE_SIZE);
+        if (curPage != prevPage) {
+            char* tmp;
+            read(file_path.c_str(), fd, tmp, leaf_offset + (curPage * constants::PAGE_SIZE), true);
+            leafNode = (BTreeLeafNode*)tmp;
+            prevPage = curPage;
+        }
+        cur = leafNode->data[i - curPage * constants::KEYS_PER_NODE];
 
         if (cur.first <= key2) { 
             if (i > start && cur.first == prev) { // Our keys are unique
@@ -327,7 +344,7 @@ void SST::read(const string& file_path, int fd, char*& data, off_t offset, bool 
     const string p_id = parse_pid(file_path, offset);
     char* tmp = (char*)new BTreeNode();
     
-    if (buffer->get_from_buffer(p_id, tmp)) {}
+    if (constants::USE_BUFFER_POOL && buffer->get_from_buffer(p_id, tmp)) {}
     else {
         int ret = pread(fd, tmp, constants::KEYS_PER_NODE * constants::PAIR_SIZE, offset);
         #ifdef ASSERT
