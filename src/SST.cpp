@@ -165,7 +165,7 @@ const int64_t* SST::search_SST_Binary(int& fd, const fs::path& file_path, const 
 const int64_t* SST::search_SST(const fs::path& file_path, const int64_t& key, const int32_t& leaf_offset, const bool& use_btree) {
     const int64_t* result = nullptr;
     // Open the SST file
-    int fd = open(file_path.c_str(), O_RDONLY | O_SYNC, 0777);
+    int fd = open(file_path.c_str(), O_RDONLY | O_SYNC | O_DIRECT, 0777);
     #ifdef ASSERT
         assert(fd != -1);
     #endif
@@ -278,7 +278,7 @@ const int32_t SST::scan_helper_Binary(const int& fd, const fs::path& file_path, 
 // The implementation is similar with search_SST()
 void SST::scan_SST(vector<pair<int64_t, int64_t>>& sorted_KV, const string& file_path, const int64_t& key1, const int64_t& key2, const int32_t& leaf_offset, const bool& use_btree) {
     // Open the SST file
-    int fd = open(file_path.c_str(), O_RDONLY | O_SYNC, 0777);
+    int fd = open(file_path.c_str(), O_RDONLY | O_SYNC | O_DIRECT, 0777);
     #ifdef ASSERT
         assert(fd != -1);
     #endif
