@@ -96,7 +96,6 @@ void test_put(string db_name)
     db.put(2, 20);
     db.put(4, 40);
     db.put(3, 30);
-    db.put(8, 80);
     cout << "\ntree-graph for key: (Read from left to right)" << endl;
     inorderKey(db.memtable->root);
     cout << "\ntree-graph for color - 0 black, 1 red:" << endl;
@@ -106,6 +105,7 @@ void test_put(string db_name)
     const int64_t* value = db.get(1, true);
     assert(*value == 100);
     cout << "\n--- test case 3: Test put() with exceeding tree capacity ---" << endl;
+    db.put(8, 80);
     db.put(-1, -10);
 
     db.closeDB();
