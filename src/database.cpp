@@ -30,15 +30,16 @@ void Database::openDB(const string db_name) {
     }
     memtable = new RBTree(memtable_capacity, memtable_root);
     bufferpool = new Bufferpool(constants::BUFFER_POOL_CAPACITY);
-    sst = new SST(db_name, bufferpool);
+    // TODO:: how to restore all SSTs to LSMTree?
+    lsmtree = new LSMTree(db_name, constants::LSMT_DEPTH, bufferpool);
 }
 
 void Database::closeDB() {
     if (memtable->memtable_size > 0) {
         string file_path = writeToSST();
     }
-    if (sst) {
-        delete sst;
+    if (lsmtree) {
+        delete lsmtree;
     }
     if (bufferpool) {
         delete bufferpool;
@@ -61,7 +62,7 @@ void Database::put(const int64_t& key, const int64_t& value) {
 const int64_t* Database::get(const int64_t& key, const bool use_btree){
     int64_t* result;
     if(memtable->get(result, key) == notInMemtable) {
-        return sst->get(key, use_btree);
+        return lsmtree->get(key, use_btree);
     }
     return result;
 }
@@ -78,7 +79,7 @@ const vector<pair<int64_t, int64_t>>* Database::scan(const int64_t& key1, const 
     memtable->scan(*sorted_KV, memtable->root, key1, key2);
 
     // Scan each SST
-    sst->scan(sorted_KV, key1, key2, use_btree);
+    lsmtree->scan(sorted_KV, key1, key2, use_btree);
 
     return sorted_KV;
 }
@@ -265,7 +266,7 @@ string Database::writeToSST() {
     close(fd);
 
     // Add to the maintained directory list
-    sst->sorted_dir.emplace_back(file_name);
+    lsmtree->add_SST(file_name);
 
     // Clear the memtable
     clear_tree();

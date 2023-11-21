@@ -5,7 +5,7 @@
 #include <set>
 #include <algorithm>
 #include "rbtree.h"
-#include "SST.h"
+#include "LSMTree.h"
 #include "bufferpool.h"
 #include "aligned_KV_vector.h"
 #include "constants.h"
@@ -17,7 +17,7 @@ class Database {
     public:
         string db_name;
         RBTree* memtable;
-        SST* sst;
+        LSMTree* lsmtree;
         Bufferpool* bufferpool;
         size_t memtable_capacity;
         Node* memtable_root;
@@ -27,7 +27,7 @@ class Database {
 
         ~Database() {
             memtable = nullptr;
-            sst = nullptr;
+            lsmtree = nullptr;
             bufferpool = nullptr;
         }
 

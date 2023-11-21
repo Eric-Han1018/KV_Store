@@ -20,22 +20,43 @@ typedef struct alignas(constants::KEYS_PER_NODE * constants::PAIR_SIZE) BTreeLea
     pair<int64_t, int64_t> data[constants::KEYS_PER_NODE];
 } BTreeLeafNode;
 
-class SST {
+class Level {
+    public:
+        size_t cur_size;
+        vector<fs::path> sorted_dir;
+
+        Level() {
+            cur_size = 0;
+        };
+
+        ~Level() {};
+
+        void clear_level();
+};
+
+class LSMTree {
     public:
         string db_name;
-        vector<fs::path> sorted_dir; // The sorted list of all SST files (ascending order, need to reverse when iterate)
         Bufferpool* buffer;
+        vector<Level> levels;
+        size_t num_levels;
 
-        SST(string db_name, Bufferpool* buffer = nullptr) : db_name(db_name), buffer(buffer) {
+        LSMTree(string db_name, size_t depth, Bufferpool* buffer = nullptr) : db_name(db_name), buffer(buffer), num_levels(1) {
             // Get a sorted list of existing SST files
-            for (auto& file_path : fs::directory_iterator(constants::DATA_FOLDER + db_name + '/')) {
-                sorted_dir.push_back(file_path);
+            // for (auto& file_path : fs::directory_iterator(constants::DATA_FOLDER + db_name + '/')) {
+            //     sorted_dir.push_back(file_path);
+            // }
+            // sort(sorted_dir.begin(), sorted_dir.end());
+            while ((depth--) > 0) {
+                levels.emplace_back();
             }
-            sort(sorted_dir.begin(), sorted_dir.end());
         }
 
         const int64_t* get(const int64_t& key, const bool& use_btree);
         void scan(vector<pair<int64_t, int64_t>>*& sorted_KV, const int64_t& key1, const int64_t& key2, const bool& use_btree);
+        
+        // LSMTree functions
+        void add_SST(const string& file_name);
 
     private:
         const int64_t* search_SST(const fs::path& file_path, const int64_t& key, const int32_t& leaf_offset, const bool& use_btree);
@@ -48,4 +69,8 @@ class SST {
         const int32_t scan_helper_Binary(const int& fd, const fs::path& file_path, const int64_t& key1, const int32_t& num_elements, const int32_t& leaf_offset);
         const string parse_pid(const string& file_name, const int32_t&);
         void read(const string& file_path, int fd, char*& data, off_t offset, bool isLeaf);
+
+        // LSMTree functions
+        void merge_down(vector<Level>::iterator current);
+        void merge_down_helper(vector<Level>::iterator cur_level, vector<Level>::iterator next_level);
 };

@@ -1,7 +1,7 @@
 #include <iostream>
 #include <unistd.h>
 #include <fcntl.h>
-#include "SST.h"
+#include "LSMTree.h"
 #include <map>
 #include <list>
 #include <fstream>
