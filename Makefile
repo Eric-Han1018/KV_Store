@@ -31,7 +31,7 @@ LDLIBS   :=
 
 .PHONY: db test clean
 
-db: CFLAGS += -o3
+db: CFLAGS += -O3
 db: $(OBJ) | $(BIN_DIR)
 	$(CC) $(LDFLAGS) $(filter-out $(OBJ_DIR)/unittest.o, $(OBJ)) $(LDLIBS) -o $(EXE)
 
