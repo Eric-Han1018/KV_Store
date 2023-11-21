@@ -4,11 +4,9 @@
 #include <filesystem>
 #include <set>
 #include <algorithm>
-#include "rbtree.h"
-#include "SST.h"
-#include "bufferpool.h"
 #include "aligned_KV_vector.h"
 #include "constants.h"
+#include "LSMTree.h"
 
 using namespace std;
 namespace fs = std::filesystem;
@@ -16,9 +14,7 @@ namespace fs = std::filesystem;
 class Database {
     public:
         string db_name;
-        RBTree* memtable;
-        SST* sst;
-        Bufferpool* bufferpool;
+        LSMTree *lsmtree;
         size_t memtable_capacity;
         Node* memtable_root;
 
@@ -26,9 +22,7 @@ class Database {
             memtable_capacity(memtable_capacity), memtable_root(memtable_root) {}
 
         ~Database() {
-            memtable = nullptr;
-            sst = nullptr;
-            bufferpool = nullptr;
+            lsmtree = nullptr;
         }
 
         void openDB(const string db_name);

@@ -28,40 +28,40 @@ void Database::openDB(const string db_name) {
         #endif
         fs::create_directory(directoryPath);
     }
-    memtable = new RBTree(memtable_capacity, memtable_root);
-    bufferpool = new Bufferpool(constants::BUFFER_POOL_CAPACITY);
-    sst = new SST(db_name, bufferpool);
+    lsmtree = new LSMTree(db_name, memtable_capacity, memtable_root);
 }
 
 void Database::closeDB() {
-    if (memtable->memtable_size > 0) {
+    if (lsmtree->memtable->memtable_size > 0) {
+        // TODO: writeToSST need to add SST to lsmtree
         string file_path = writeToSST();
     }
-    if (sst) {
-        delete sst;
-    }
-    if (bufferpool) {
-        delete bufferpool;
-    }
+    // TODO: implement closeDB()
+    // if (sst) {
+    //     delete sst;
+    // }
+    // if (bufferpool) {
+    //     delete bufferpool;
+    // }
 }
 
 // TODO: Insert a key-value pair into the memtable
 void Database::put(const int64_t& key, const int64_t& value) {
-    if (memtable->put(key, value) == memtableFull) {
+    if (lsmtree->memtable->put(key, value) == memtableFull) {
         string file_path = writeToSST();
         #ifdef DEBUG
             cout << "Memtable capacity reaches maximum. Data has been " <<
                     "saved to: " << file_path << endl;
         #endif
 
-        memtable->put(key, value);
+        lsmtree->memtable->put(key, value);
     }
 }
 
 const int64_t* Database::get(const int64_t& key, const bool use_btree){
     int64_t* result;
-    if(memtable->get(result, key) == notInMemtable) {
-        return sst->get(key, use_btree);
+    if(lsmtree->memtable->get(result, key) == notInMemtable) {
+        return lsmtree->sst->get(key, use_btree);
     }
     return result;
 }
@@ -75,10 +75,10 @@ const vector<pair<int64_t, int64_t>>* Database::scan(const int64_t& key1, const 
     vector<pair<int64_t, int64_t>>* sorted_KV = new vector<pair<int64_t, int64_t>>;
 
     // Scan the memtable
-    memtable->scan(*sorted_KV, memtable->root, key1, key2);
+    lsmtree->memtable->scan(*sorted_KV, lsmtree->memtable->root, key1, key2);
 
     // Scan each SST
-    sst->scan(sorted_KV, key1, key2, use_btree);
+    lsmtree->sst->scan(sorted_KV, key1, key2, use_btree);
 
     return sorted_KV;
 }
@@ -224,7 +224,7 @@ string Database::writeToSST() {
     // Content in std::vector is stored contiguously
     aligned_KV_vector sorted_KV; // Stores all non-leaf elements
     vector<vector<BTreeNode>> non_leaf_nodes; // Stores all leaf elements
-    scan_memtable(sorted_KV, memtable->root);
+    scan_memtable(sorted_KV, lsmtree->memtable->root);
 
     int32_t leaf_offset;
     
@@ -235,11 +235,12 @@ string Database::writeToSST() {
     string file_name = constants::DATA_FOLDER + db_name + '/';
     time_t current_time = time(0);
     clock_t current_clock = clock(); // In case there is a tie in time()
-    file_name.append(to_string(current_time)).append(to_string(current_clock)).append("_").append(to_string(memtable->min_key)).append("_").append(to_string(memtable->max_key)).append("_").append(to_string(leaf_offset)).append(".bytes");
+    file_name.append(to_string(current_time)).append(to_string(current_clock)).append("_").append(to_string(lsmtree->memtable->min_key)).append("_").append(to_string(lsmtree->memtable->max_key)).append("_").append(to_string(leaf_offset)).append(".bytes");
 
     // Write data structure to binary file
     // FIXME: do we need O_DIRECT for now?
-    int fd = open(file_name.c_str(), O_WRONLY | O_CREAT | O_SYNC | O_DIRECT, 0777);
+    // int fd = open(file_name.c_str(), O_WRONLY | O_CREAT | O_SYNC | O_DIRECT, 0777);
+    int fd = open(file_name.c_str(), O_WRONLY | O_CREAT | O_SYNC, 0777);
     #ifdef ASSERT
         assert(fd!=-1);
     #endif
@@ -265,7 +266,7 @@ string Database::writeToSST() {
     close(fd);
 
     // Add to the maintained directory list
-    sst->sorted_dir.emplace_back(file_name);
+    lsmtree->sst->sorted_dir.emplace_back(file_name);
 
     // Clear the memtable
     clear_tree();
@@ -284,11 +285,11 @@ void Database::scan_memtable(aligned_KV_vector& sorted_KV, Node* root) {
 
 // Clear all the nodes in the tree
 void Database::clear_tree() {
-    delete memtable->root;
-    memtable->root = nullptr;
-    memtable->curr_size = 0;
-    memtable->min_key = numeric_limits<int64_t>::max();
-    memtable->max_key = numeric_limits<int64_t>::min();
+    delete lsmtree->memtable->root;
+    lsmtree->memtable->root = nullptr;
+    lsmtree->memtable->curr_size = 0;
+    lsmtree->memtable->min_key = numeric_limits<int64_t>::max();
+    lsmtree->memtable->max_key = numeric_limits<int64_t>::min();
 }
 
 // int main() {

@@ -8,7 +8,6 @@
 #include "constants.h"
 #include "MurmurHash3.h"
 #include <cmath>
-#include "SST.h"
 
 using namespace std;
 namespace fs = std::filesystem;

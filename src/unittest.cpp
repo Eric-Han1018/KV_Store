@@ -98,9 +98,9 @@ void test_put(string db_name)
     db.put(3, 30);
     db.put(8, 80);
     cout << "\ntree-graph for key: (Read from left to right)" << endl;
-    inorderKey(db.memtable->root);
+    inorderKey(db.lsmtree->memtable->root);
     cout << "\ntree-graph for color - 0 black, 1 red:" << endl;
-    inorderColor(db.memtable->root);
+    inorderColor(db.lsmtree->memtable->root);
     cout << "\n--- test case 2: Test put() with same key, update the value ---" << endl;
     db.put(1, 100);
     const int64_t* value = db.get(1, true);
@@ -192,7 +192,7 @@ void test_bufferpool(string db_name){
         }
         n--;
     }
-    db.bufferpool->print();
+    db.lsmtree->bufferpool->print();
     db.closeDB();
 }
 
@@ -240,7 +240,7 @@ void test_bufferpool_scan_get_binary(string db_name){
     assert(is_sorted(values->begin(), values->end()));
     delete values;
 
-    db.bufferpool->print();
+    db.lsmtree->bufferpool->print();
     db.closeDB();
 }
 
@@ -275,7 +275,7 @@ void test_bufferpool(){
         }
         n--;
     }
-    db.bufferpool->print();
+    db.lsmtree->bufferpool->print();
 }
 
 int main(int argc, char **argv) {
