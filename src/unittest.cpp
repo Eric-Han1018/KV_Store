@@ -49,12 +49,13 @@ void test_get()
     cout << "--- test case 1: Test get() from memtable ---" << endl;
     // random insert
     db.put(1, 10);
+    db.put(1, 30); // This is an update on memtable
     db.put(5, 50);
-    int64_t key = 5;
+    int64_t key = 1;
     const int64_t* value = db.get(key);
     if (value != nullptr) {
         cout << "Found {Key: " << key << ", Value: " << *value << "}" << endl;
-        assert(*value == 50);
+        assert(*value == 30);
     } else {
         cout << "Not found Key: " << key << endl;
         assert(false);
@@ -65,7 +66,7 @@ void test_get()
     value = db.get(key);
     if (value != nullptr) {
         cout << "Found {Key: " << key << ", Value: " << *value << "}" << endl;
-        assert(*value == 50);
+        assert(*value == 30);
     } else {
         cout << "Not found Key: " << key << endl;
         assert(false);
@@ -111,11 +112,12 @@ void test_scan(){
     db.put(2, 20);
     db.put(4, 40);
     db.put(3, 30);
+    db.put(3, 60); // This is an update on memtable
     db.put(8, 80);
     int64_t key1 = 2;
     int64_t key2 = 4;
     const vector<pair<int64_t, int64_t>>* values = db.scan(key1, key2);
-    vector<pair<int64_t, int64_t>> ans = {{2, 20}, {3, 30}, {4, 40}};
+    vector<pair<int64_t, int64_t>> ans = {{2, 20}, {3, 60}, {4, 40}};
     for (const auto& pair : *values) {
         cout << "Found {Key: " << pair.first << ", Value: " << pair.second << "}" << endl;
     }
@@ -140,7 +142,7 @@ void test_scan(){
         cout << "Found {Key: " << pair.first << ", Value: " << pair.second << "}" << endl;
     }
     assert(is_sorted(values->begin(), values->end()));
-    ans = {{2, 20}, {3, 30}, {4, 40}, {5, 50}, {7, 90}, {8, 80}};
+    ans = {{2, 20}, {3, 60}, {4, 40}, {5, 50}, {7, 90}, {8, 80}};
     assert(equal(values->begin(), values->end(), ans.begin()));
 }
 

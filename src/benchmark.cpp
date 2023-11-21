@@ -44,84 +44,84 @@ void write_csv(std::string filename, std::vector<std::pair<std::string, std::vec
     myFile.close();
 }
 
+// Return MB/sec
+double calculate_throughput(const chrono::_V2::system_clock::time_point& start_time, const chrono::_V2::system_clock::time_point& end_time, const int& op_counts) {
+    // in microsec
+    int64_t delta = (end_time - start_time) / chrono::microseconds(1);
+    // ops/microsec
+    double op = (double)op_counts / delta;
+    // ops/sec
+    return op * 1000000;
+}
+
 int main(int argc, char **argv) {
+    assert(argc == 2);
     srand (1);
-    size_t mematable_size = 1; // MB
-    int64_t megabyte = 1 << 20;
+    const int64_t num_ops = 500;
+    const int64_t megabyte = 1 << 20;
     vector<int32_t> inputDataSize = {1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024};
 
-    // Convert memtable size to # of KV pairs
-    mematable_size *= megabyte;
-    mematable_size /= constants::PAIR_SIZE;
-
     cerr << "Running benchmarking..." << endl;
-    vector<int32_t> put_ops;
-    vector<int32_t> get_ops;
-    vector<int32_t> scan_ops;
+    vector<int32_t> put_tps_Binary;
+    vector<int32_t> get_tps_Binary;
+    vector<int32_t> scan_tps_Binary;
+
+    cerr << "Creating Database with size: " << constants::MEMTABLE_SIZE << " memtable entries...";
+    Database db(constants::MEMTABLE_SIZE);
+    cerr << "Done" << endl;
+
+    int64_t last_inputSize = 0;
     for (int64_t inputSize : inputDataSize) {
         cerr << "-------------- Testing Input Size: " << inputSize << "MB..." << endl;
         inputSize *= megabyte;
         inputSize /= constants::PAIR_SIZE;
 
-        cerr << "Creating Database with size: " << mematable_size << " memtable entries...";
-        Database db(mematable_size);
-        cerr << "Done" << endl;
-
-        cerr << "Populating " << inputSize << " entries into DB...";
-        for (int64_t i = 0; i < inputSize; ++i) {
-            // FIXME: Confirm if use rand(), and if use % inputSize
-            db.put((int64_t)rand() % inputSize, (int64_t)rand() % inputSize);
+        cerr << "Populating " << inputSize - last_inputSize << " more entries into DB...";
+        auto start_time = chrono::high_resolution_clock::now();
+        for (int64_t i = 0; i < inputSize - last_inputSize; ++i) {
+            db.put((int64_t)rand(), (int64_t)rand());
         }
-        cerr << "Done" << endl;
+        double tps = calculate_throughput(start_time, chrono::high_resolution_clock::now(), inputSize);
+        put_tps_Binary.emplace_back(tps);
+        last_inputSize = inputSize;
+        cerr << "Done: " << tps << "ops/sec" << endl;
 
         cerr << "Testing get()...";
-        int64_t count = 0;
-        auto start_time = chrono::high_resolution_clock::now();
-        // FIXME: Confirm if use this way to determin 10sec
-        while ((chrono::high_resolution_clock::now() - start_time) / chrono ::milliseconds(1) <= 10000) {
-            // FIXME: Confirm if get by random
+        start_time = chrono::high_resolution_clock::now();
+        for (int64_t i = 0; i < num_ops; ++i) {
             delete db.get((int64_t)rand() % inputSize);
-            ++count;
         }
-        get_ops.emplace_back(count);
-        cerr << "Done" << endl;
+        tps = calculate_throughput(start_time, chrono::high_resolution_clock::now(), num_ops);
+        get_tps_Binary.emplace_back(tps);
+        cerr << "Done: " << tps << "ops/sec" << endl;
 
         cerr << "Testing scan()...";
-        count = 0;
         start_time = chrono::high_resolution_clock::now();
-        while ((chrono::high_resolution_clock::now() - start_time) / chrono ::milliseconds(1) <= 10000) {
-            int64_t key1 = rand() % inputSize;
+        for (int64_t i = 0; i < num_ops; ++i) {
+            int64_t key1 = rand();
             delete db.scan(key1, key1 + constants::KEYS_PER_NODE);
-            ++count;
         }
-        scan_ops.emplace_back(count);
-        cerr << "Done" << endl;
-
-        cerr << "Testing put()...";
-        count = 0;
-        start_time = chrono::high_resolution_clock::now();
-        while ((chrono::high_resolution_clock::now() - start_time) / chrono ::milliseconds(1) <= 10000) {
-            // FIXME: Confirm if use rand(), and if use % inputSize
-            db.put((int64_t)rand() % inputSize, (int64_t)rand() % inputSize);
-            ++count;
-        }
-        put_ops.emplace_back(count);
-        cerr << "Done" << endl;
-
-        count = 0;
-        for (auto& path: fs::directory_iterator(constants::DATA_FOLDER)) {
-            fs::remove_all(path);
-            ++count;
-        }
-        cerr << "Deleted " << count << "SSTs" <<endl;
+        tps = calculate_throughput(start_time, chrono::high_resolution_clock::now(), num_ops);
+        scan_tps_Binary.emplace_back(tps);
+        cerr << "Done: " << tps << "ops/sec" << endl;
     }
 
+    int count = 0;
+    for (auto& path: fs::directory_iterator(constants::DATA_FOLDER)) {
+        fs::remove_all(path);
+        ++count;
+    }
+    cerr << "Deleted " << count << "SSTs" <<endl;
+    
+
     // Wrap into a vector
-    std::vector<std::pair<std::string, std::vector<int>>> vals = {{"InputDataSize", inputDataSize}, {"Put", put_ops}, {"Get", get_ops}, {"Scan", scan_ops}};
+    std::vector<std::pair<std::string, std::vector<int>>> vals = {{"InputDataSize", inputDataSize},  
+                                                                  {"Put_Binary", put_tps_Binary}, {"Get_Binary", get_tps_Binary}, {"Scan_Binary", scan_tps_Binary}};
     
     // Write the vector to CSV
-    cerr << "Writing results to benchmark.csv...";
-    write_csv("benchmark.csv", vals);
+    string file_name = argv[1];
+    cerr << "Writing results to " << file_name << "..." << endl;;
+    write_csv(file_name, vals);
     cerr << "Done" <<endl;
     
     return 0;

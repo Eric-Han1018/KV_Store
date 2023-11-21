@@ -27,8 +27,6 @@ RBTree::~RBTree() {
 
 // TODO: Insert a key-value pair into the memtable
 Result RBTree::put(const int64_t& key, const int64_t& value) {
-    // FUTURE-TODO: Check if the key already exists and update its value
-
     // Check if current tree size reaches maximum, and write to SST
     if (curr_size >= memtable_size) {
         return memtableFull;
@@ -251,7 +249,14 @@ void RBTree::insertNode(Node* node) {
 
     while (x != nullptr) {
         y = x;
-        if (node->key < x->key)
+        if (node->key == x->key) {
+            x->value = node->value;
+            #ifdef DEBUG
+                cout << "Update key: " << node->key << " to value: " << node->value << endl;
+            #endif
+            return;
+        }
+        else if (node->key < x->key)
             x = x->left;
         else
             x = x->right;
