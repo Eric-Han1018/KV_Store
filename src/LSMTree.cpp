@@ -17,7 +17,7 @@ using namespace std;
 // Search matching key in SSTs in the order of youngest to oldest
 const int64_t* LSMTree::get(const int64_t& key, const bool& use_btree) {
     // Iterate to read each file in descending order (new->old)
-    for (int i = 0; i < num_levels; ++i) {
+    for (int i = 0; i < (int)num_levels; ++i) {
         for (auto file_path_itr = levels[i].sorted_dir.rbegin(); file_path_itr != levels[i].sorted_dir.rend(); ++file_path_itr) {
             #ifdef DEBUG
                 cout << "Searching in file: " << *file_path_itr << "..." << endl;
@@ -232,7 +232,7 @@ void LSMTree::scan(vector<pair<int64_t, int64_t>>*& sorted_KV, const int64_t& ke
     size_t len;
 
     // Scan each SST
-    for (int i = 0; i < num_levels; ++i) {
+    for (int i = 0; i < (int)num_levels; ++i) {
         for (auto file_path_itr = levels[i].sorted_dir.rbegin(); file_path_itr != levels[i].sorted_dir.rend(); ++file_path_itr) {
             #ifdef DEBUG
                 cout << "Scanning file: " << *file_path_itr << "..." << endl;

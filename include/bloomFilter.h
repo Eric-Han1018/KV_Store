@@ -17,5 +17,8 @@ class BloomFilter {
     public:
         bitset<N * constants::BLOOM_FILTER_NUM_BITS> bitmap;
 
-        
+        void set(const int64_t& key);
+        bool test(const int64_t& key);
+    private:
+        size_t murmur_hash(const int64_t& key, const uint32_t& seed);
 };
