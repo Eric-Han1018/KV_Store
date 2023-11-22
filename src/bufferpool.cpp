@@ -92,8 +92,8 @@ void Bufferpool::evict_clock(int num_pages) {
                 frame->clock_bit = false;
             } else {
                 // cout << "evict page: " << frame->p_id << endl;
+                delete (BTreeNode*)(frame->data);
                 frame = hash_directory[clock_hand].erase(frame);
-                delete frame->data;
                 current_size--;
                 num_pages--;
             }
