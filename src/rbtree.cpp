@@ -252,6 +252,7 @@ void RBTree::insertNode(Node* node) {
         y = x;
         if (node->key == x->key) {
             x->value = node->value;
+            delete node;
             return;
         }
         else if (node->key < x->key)

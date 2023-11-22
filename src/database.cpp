@@ -37,6 +37,7 @@ void Database::openDB(const string db_name) {
 void Database::closeDB() {
     if (memtable->memtable_size > 0) {
         string file_path = writeToSST();
+        delete memtable;
     }
     if (lsmtree) {
         delete lsmtree;

@@ -43,8 +43,7 @@ void Bufferpool::insert_to_buffer(const string& p_id, bool leaf_page, char* data
     // TODO: update if exists
 
     // Allocate memory for data
-    char* tmp = new char[constants::KEYS_PER_NODE * constants::PAIR_SIZE];
-    tmp = data;
+    char* tmp = data;
 
     // TODO: further determine when to evict and how many to evict?
     if(current_size > floor(maximal_size * 0.8)) {
@@ -57,8 +56,7 @@ void Bufferpool::insert_to_buffer(const string& p_id, bool leaf_page, char* data
         #endif
     }
 
-    Frame frame(p_id, leaf_page, tmp);
-    hash_directory[index].push_back(frame);
+    hash_directory[index].emplace_back(Frame(p_id, leaf_page, tmp));
     current_size++;
 }
 
@@ -71,7 +69,7 @@ bool Bufferpool::get_from_buffer(const string& p_id, char*& data) {
         #endif
         return false;
     }
-    for (Frame frame : hash_directory[index]) {
+    for (Frame& frame : hash_directory[index]) {
         if (frame.p_id == p_id) {
             data = frame.data;
             frame.clock_bit = true;
@@ -95,6 +93,7 @@ void Bufferpool::evict_clock(int num_pages) {
             } else {
                 // cout << "evict page: " << frame->p_id << endl;
                 frame = hash_directory[clock_hand].erase(frame);
+                delete frame->data;
                 current_size--;
                 num_pages--;
             }
