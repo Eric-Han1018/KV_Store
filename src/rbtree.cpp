@@ -254,6 +254,7 @@ void RBTree::insertNode(Node* node) {
             #ifdef DEBUG
                 cout << "Update key: " << node->key << " to value: " << node->value << endl;
             #endif
+            delete node;
             return;
         }
         else if (node->key < x->key)

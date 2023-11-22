@@ -56,6 +56,7 @@ void test_get()
     if (value != nullptr) {
         cout << "Found {Key: " << key << ", Value: " << *value << "}" << endl;
         assert(*value == 30);
+        delete value;
     } else {
         cout << "Not found Key: " << key << endl;
         assert(false);
@@ -67,6 +68,7 @@ void test_get()
     if (value != nullptr) {
         cout << "Found {Key: " << key << ", Value: " << *value << "}" << endl;
         assert(*value == 30);
+        delete value;
     } else {
         cout << "Not found Key: " << key << endl;
         assert(false);
@@ -123,6 +125,7 @@ void test_scan(){
     }
     assert(is_sorted(values->begin(), values->end()));
     assert(equal(values->begin(), values->end(), ans.begin()));
+    delete values;
 
     cout << "\n--- test case 2: Test scan() from SST ---" << endl;
     db.put(-1, -10);
@@ -132,6 +135,7 @@ void test_scan(){
     }
     assert(is_sorted(values->begin(), values->end()));
     assert(equal(values->begin(), values->end(), ans.begin()));
+    delete values;
 
     cout << "\n--- test case 3: Test scan() from both memtable and SST ---" << endl;
     db.put(7, 90);
@@ -144,6 +148,7 @@ void test_scan(){
     assert(is_sorted(values->begin(), values->end()));
     ans = {{2, 20}, {3, 60}, {4, 40}, {5, 50}, {7, 90}, {8, 80}};
     assert(equal(values->begin(), values->end(), ans.begin()));
+    delete values;
 }
 
 int main(int argc, char **argv) {
