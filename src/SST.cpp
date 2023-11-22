@@ -32,7 +32,7 @@ const int64_t* SST::get(const int64_t& key, const bool& use_btree) {
             continue;
         }
 
-        const int64_t* value = search_SST(*file_path_itr, key, leaf_offset, use_btree);
+        const int64_t* value = search_SST(sst_path / (*file_path_itr), key, leaf_offset, use_btree);
         if (value != nullptr) return value;
         #ifdef DEBUG
             cout << "Not found key: " << key << " in file: " << *file_path_itr << endl;
@@ -204,7 +204,7 @@ void SST::scan(vector<pair<int64_t, int64_t>>*& sorted_KV, const int64_t& key1, 
         len = sorted_KV->size();
 
         // Scan the SST
-        scan_SST(*sorted_KV, *file_path_itr, key1, key2, leaf_offset, use_btree);
+        scan_SST(*sorted_KV, sst_path / (*file_path_itr), key1, key2, leaf_offset, use_btree);
 
         // Merge into one sorted array
         // FIXME: ask Prof if merge() is allowed

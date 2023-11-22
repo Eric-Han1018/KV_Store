@@ -235,14 +235,15 @@ string Database::writeToSST() {
 
     // Create file name based on current time
     // TODO: modify file name to a smarter way
-    string file_name = constants::DATA_FOLDER + db_name + "/sst/";
+    string file_path = constants::DATA_FOLDER + db_name + "/sst/";
     time_t current_time = time(0);
     clock_t current_clock = clock(); // In case there is a tie in time()
-    file_name.append(to_string(current_time)).append(to_string(current_clock)).append("_").append(to_string(memtable->min_key)).append("_").append(to_string(memtable->max_key)).append("_").append(to_string(leaf_offset)).append(".bytes");
+    string file_name = to_string(current_time).append(to_string(current_clock)).append("_").append(to_string(memtable->min_key)).append("_").append(to_string(memtable->max_key)).append("_").append(to_string(leaf_offset)).append(".bytes");
+    file_path.append(file_name);
 
     // Write data structure to binary file
     // FIXME: do we need O_DIRECT for now?
-    int fd = open(file_name.c_str(), O_WRONLY | O_CREAT | O_SYNC | O_DIRECT, 0777);
+    int fd = open(file_path.c_str(), O_WRONLY | O_CREAT | O_SYNC | O_DIRECT, 0777);
     #ifdef ASSERT
         assert(fd!=-1);
     #endif
@@ -273,7 +274,7 @@ string Database::writeToSST() {
     // Clear the memtable
     clear_tree();
 
-    return file_name;
+    return file_path;
 }
 
 // Helper function to recursively perform inorder scan

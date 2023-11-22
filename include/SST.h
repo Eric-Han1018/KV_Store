@@ -12,13 +12,17 @@ namespace fs = std::filesystem;
 class SST {
     public:
         string db_name;
+        fs::path sst_path;
+        fs::path filter_path;
         vector<fs::path> sorted_dir; // The sorted list of all SST files (ascending order, need to reverse when iterate)
         Bufferpool* buffer;
 
         SST(string db_name, Bufferpool* buffer = nullptr) : db_name(db_name), buffer(buffer) {
-            // Get a sorted list of existing SST files
-            for (auto& file_path : fs::directory_iterator(constants::DATA_FOLDER + db_name + "/sst/")) {
-                sorted_dir.push_back(file_path);
+            sst_path = constants::DATA_FOLDER + db_name + "/sst/";
+            filter_path = constants::DATA_FOLDER + db_name + "/filter/";
+            // Get a sorted list of existing SST & Bloom Filter files
+            for (auto& file_path : fs::directory_iterator(sst_path)) {
+                sorted_dir.push_back(file_path.path().filename());
             }
             sort(sorted_dir.begin(), sorted_dir.end());
         }
