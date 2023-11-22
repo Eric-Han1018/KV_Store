@@ -21,16 +21,21 @@ const int64_t* SST::get(const int64_t& key, const bool& use_btree) {
         #ifdef DEBUG
             cout << "Searching in file: " << *file_path_itr << "..." << endl;
         #endif
-        // Skip if the key is not between min_key and max_key
-        int64_t min_key, max_key;
-        int32_t leaf_offset;
-        parse_SST_name(*file_path_itr, min_key, max_key, leaf_offset);
-        if (key < min_key || key > max_key) {
+        // Skip if Bloom Filter returns negative
+        if (!check_bloomFilter(filter_path / (*file_path_itr), key, constants::MEMTABLE_SIZE)) {
             #ifdef DEBUG
-                cout << "key is not in range of: " << *file_path_itr << endl;
+                cout << "Bloom Filter returned false from: " << *file_path_itr << endl;
             #endif
             continue;
         }
+        #ifdef DEBUG
+                cout << "Bloom Filter returned true from: " << *file_path_itr << endl;
+        #endif
+
+        // Get offset of the leaf
+        int last = ((string)(*file_path_itr)).find_last_of("_");
+        int dot = ((string)(*file_path_itr)).find_last_of(".");
+        int32_t leaf_offset = stoi(((string)(*file_path_itr)).substr(last+1, dot - last - 1));
 
         const int64_t* value = search_SST(sst_path / (*file_path_itr), key, leaf_offset, use_btree);
         if (value != nullptr) return value;
@@ -331,7 +336,8 @@ void SST::scan_SST(vector<pair<int64_t, int64_t>>& sorted_KV, const string& file
 const string SST::parse_pid(const string& file_path, const int32_t& offset) {
     size_t lastSlash = file_path.find_last_of('/');
     size_t lastDot = file_path.find_last_of('.');
-    string file_name = file_path.substr(lastSlash + 1, lastDot - lastSlash - 1);
+    // Note: Here "-1" means to distinguish between sst/ and filter/ (i.e. "t/" vs. "r/")
+    string file_name = file_path.substr(lastSlash - 1, lastDot - lastSlash - 1);
     
     // Combine the extracted part with offset into a string
     stringstream combinedString;
@@ -355,4 +361,27 @@ void SST::read(const string& file_path, int fd, char*& data, off_t offset, bool 
         buffer->insert_to_buffer(p_id, isLeaf, tmp);
     }
     data = tmp;
+}
+
+bool SST::check_bloomFilter(const fs::path& filter_path, const int64_t& key, const size_t& SST_size) {
+    int fd = open(filter_path.c_str(), O_RDONLY | O_SYNC | O_DIRECT, 0777);
+    for (uint32_t i = 0; i < constants::BLOOM_FILTER_NUM_HASHES; ++i) {
+        size_t hash = murmur_hash(key, i) % (SST_size * constants::BLOOM_FILTER_NUM_BITS);
+
+        size_t page = hash >> 15; // 4kB = 1<<12 bytes = 8<<12 bits = 1<<15 bits
+
+        // One-page-large bitmap
+        bitset<1<<15>* bs;
+
+        read(filter_path, fd, (char*&)bs, page * constants::PAGE_SIZE, false); // FIXME: isLeaf有用吗？
+
+        size_t offset = hash & ((1<<15)-1); // This is the mask to the the offset bit
+
+        if (!bs->test(offset)) {
+            close(fd);
+            return false;
+        }
+    }
+    close(fd);
+    return true;
 }
