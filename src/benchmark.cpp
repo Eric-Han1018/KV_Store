@@ -10,11 +10,11 @@
 #include <chrono>
 using namespace std;
 
-// Taken from https://www.gormanalysis.com/blog/reading-and-writing-csv-files-with-cpp/
-void write_csv(std::string filename, std::vector<std::pair<std::string, std::vector<int>>> dataset){
+// Modified from https://www.gormanalysis.com/blog/reading-and-writing-csv-files-with-cpp/
+void write_csv(std::string filename, std::vector<std::pair<std::string, std::vector<double>>> dataset){
     // Make a CSV file with one or more columns of integer values
     // Each column of data is represented by the pair <column name, column data>
-    //   as std::pair<std::string, std::vector<int>>
+    //   as std::pair<std::string, std::vector<double>>
     // The dataset is represented as a vector of these columns
     // Note that all columns should be the same size
     
@@ -59,16 +59,16 @@ int main(int argc, char **argv) {
     srand (1);
     const int64_t num_ops = 500;
     const int64_t megabyte = 1 << 20;
-    vector<int32_t> inputDataSize = {1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024};
+    vector<double> inputDataSize = {1, 2};//, 4, 8, 16, 32, 64, 128, 256, 512, 1024};
     vector<bool> useBTrees = {true, false};
 
     cerr << "Running benchmarking..." << endl;
-    vector<int32_t> put_tps_Btree;
-    vector<int32_t> get_tps_Btree;
-    vector<int32_t> scan_tps_Btree;
-    vector<int32_t> put_tps_Binary;
-    vector<int32_t> get_tps_Binary;
-    vector<int32_t> scan_tps_Binary;
+    vector<double> put_tps_Btree;
+    vector<double> get_tps_Btree;
+    vector<double> scan_tps_Btree;
+    vector<double> put_tps_Binary;
+    vector<double> get_tps_Binary;
+    vector<double> scan_tps_Binary;
 
     for(bool useBtree : useBTrees) {
         if (useBtree) cerr << "============== Test Btree ==============" << endl;
@@ -128,7 +128,7 @@ int main(int argc, char **argv) {
     
 
     // Wrap into a vector
-    std::vector<std::pair<std::string, std::vector<int>>> vals = {{"InputDataSize", inputDataSize}, {"Put_Btree", put_tps_Btree}, {"Get_Btree", get_tps_Btree}, {"Scan_Btree", scan_tps_Btree}, 
+    vector<pair<string, vector<double>>> vals = {{"InputDataSize", inputDataSize}, {"Put_Btree", put_tps_Btree}, {"Get_Btree", get_tps_Btree}, {"Scan_Btree", scan_tps_Btree}, 
                                                                                                     {"Put_Binary", put_tps_Binary}, {"Get_Binary", get_tps_Binary}, {"Scan_Binary", scan_tps_Binary}};
     
     // Write the vector to CSV
