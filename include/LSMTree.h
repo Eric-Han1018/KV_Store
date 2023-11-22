@@ -5,6 +5,7 @@
 #include <set>
 #include <algorithm>
 #include "constants.h"
+#include "bloomFilter.h"
 #include "bufferpool.h"
 using namespace std;
 namespace fs = std::filesystem;
@@ -24,6 +25,7 @@ class Level {
     public:
         size_t cur_size;
         vector<fs::path> sorted_dir;
+        vector<fs::path> sorted_filters;
 
         Level() {
             cur_size = 0;
@@ -73,4 +75,7 @@ class LSMTree {
         // LSMTree functions
         void merge_down(vector<Level>::iterator current);
         void merge_down_helper(vector<Level>::iterator cur_level, vector<Level>::iterator next_level);
+
+        // BloomFilter functions
+        bool check_bloomFilter(fs::path& filter_path, const int64_t& key);
 };

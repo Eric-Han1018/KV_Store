@@ -20,5 +20,5 @@ namespace constants {
     const size_t LSMT_SIZE_RATIO = 2;
     const size_t LSMT_DEPTH = 10;
     const uint32_t BLOOM_FILTER_NUM_BITS = 5;
-    const uint32_t BLOOM_FILTER_NUM_HASHes = 0.7 * BLOOM_FILTER_NUM_BITS; // ln2 ~= 0.7
+    const uint32_t BLOOM_FILTER_NUM_HASHES = 0.7 * BLOOM_FILTER_NUM_BITS; // ln2 ~= 0.7
 }

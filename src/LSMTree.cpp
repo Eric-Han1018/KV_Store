@@ -12,6 +12,7 @@
 #include <sstream>
 #include <cerrno>
 #include <cstring>
+#include "util.h"
 using namespace std;
 
 // Search matching key in SSTs in the order of youngest to oldest
@@ -404,4 +405,24 @@ void LSMTree::read(const string& file_path, int fd, char*& data, off_t offset, b
         buffer->insert_to_buffer(p_id, isLeaf, tmp);
     }
     data = tmp;
+}
+
+bool LSMTree::check_bloomFilter(fs::path& filter_path, const int64_t& key) {
+    int N = 1000; // FIXME: change it later!!
+    for (uint32_t i = 0; i < constants::BLOOM_FILTER_NUM_HASHES; ++i) {
+        size_t hash = murmur_hash(key, i) % (N * constants::BLOOM_FILTER_NUM_BITS);
+
+        size_t page = hash >> 15; // 4kB = 1<<12 bytes = 8<<12 bits = 1<<15 bits
+
+        bitset<1<<15>* bs;
+
+        int fd = open(filter_path.c_str(), O_RDONLY | O_SYNC | O_DIRECT, 0777);
+        read(filter_path, fd, (char*&)bs, page * constants::PAGE_SIZE, false); // FIXME: isLeaf有用吗？
+        close(fd);
+
+        size_t offset = hash & ((1<<15)-1); // This is the mask to the the offset bit
+
+        if (!bs->test(offset)) return false;
+    }
+    return true;
 }
