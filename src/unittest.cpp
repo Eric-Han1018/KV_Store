@@ -57,6 +57,7 @@ void test_get(string db_name)
     if (value != nullptr) {
         cout << "Found {Key: " << key << ", Value: " << *value << "}" << endl;
         assert(*value == 30);
+        delete value;
     } else {
         cout << "Not found Key: " << key << endl;
         assert(false);
@@ -72,12 +73,14 @@ void test_get(string db_name)
         cout << "Not found Key: " << key << endl;
         assert(false);
     }
+    delete value;
     cout << "\n--- test case 3: Test get() from unexisted key ---" << endl;
     key = -668;
     value = db.get(-668, true);
     if (value != nullptr) {
         cout << "Found {Key: " << key << ", Value: " << *value << "}" << endl;
         assert(false);
+        delete value;
     } else {
         cout << "Not found Key: " << key << endl;
     }
@@ -105,6 +108,7 @@ void test_put(string db_name)
     db.put(1, 100);
     const int64_t* value = db.get(1, true);
     assert(*value == 100);
+    delete value;
     cout << "\n--- test case 3: Test put() with exceeding tree capacity ---" << endl;
     db.put(8, 80);
     db.put(-1, -10);
@@ -182,6 +186,7 @@ void test_bufferpool(string db_name){
         if (value != nullptr){
             cout << "Found: " << key << "->" << *value << endl;
         }
+        delete value;
         n++;
     }
     for (int key : keys) {
@@ -192,6 +197,7 @@ void test_bufferpool(string db_name){
         if (value != nullptr){
             cout << "Found: " << key << "->" << *value << endl;
         }
+        delete value;
         n--;
     }
     db.bufferpool->print();
@@ -218,6 +224,7 @@ void test_bufferpool_scan_get_binary(string db_name){
         const int64_t* value = db.get(key, false);
         if (value != nullptr){
             cout << "Found: " << key << "->" << *value << endl;
+            delete value;
         }
         n++;
     }
@@ -228,6 +235,7 @@ void test_bufferpool_scan_get_binary(string db_name){
         const int64_t* value = db.get(key, false);
         if (value != nullptr){
             cout << "Found: " << key << "->" << *value << endl;
+            delete value;
         }
         n--;
     }

@@ -342,10 +342,11 @@ const string SST::parse_pid(const string& file_path, const int32_t& offset) {
 // Read either from bufferpool or SST
 void SST::read(const string& file_path, int fd, char*& data, off_t offset, bool isLeaf) {
     const string p_id = parse_pid(file_path, offset);
-    char* tmp = (char*)new BTreeNode();
+    char* tmp;
     
     if (constants::USE_BUFFER_POOL && buffer->get_from_buffer(p_id, tmp)) {}
     else {
+        tmp = (char*)new BTreeNode();
         int ret = pread(fd, tmp, constants::KEYS_PER_NODE * constants::PAIR_SIZE, offset);
         #ifdef ASSERT
             assert(ret == constants::KEYS_PER_NODE * constants::PAIR_SIZE);
