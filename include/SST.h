@@ -17,7 +17,7 @@ class SST {
 
         SST(string db_name, Bufferpool* buffer = nullptr) : db_name(db_name), buffer(buffer) {
             // Get a sorted list of existing SST files
-            for (auto& file_path : fs::directory_iterator(constants::DATA_FOLDER + db_name + '/')) {
+            for (auto& file_path : fs::directory_iterator(constants::DATA_FOLDER + db_name + "/sst/")) {
                 sorted_dir.push_back(file_path);
             }
             sort(sorted_dir.begin(), sorted_dir.end());

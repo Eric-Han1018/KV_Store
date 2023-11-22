@@ -65,6 +65,5 @@ class Bufferpool {
         void print();
 
     private:
-        size_t murmur_hash(const string& key);
         void evict_clock(int num_pages);
 };

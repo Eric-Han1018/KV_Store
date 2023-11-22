@@ -18,7 +18,8 @@ void Database::openDB(const string db_name) {
     this->db_name = db_name;
     fs::path directoryPath = constants::DATA_FOLDER + db_name;
 
-    if (fs::exists(directoryPath) && fs::is_directory(directoryPath)) {
+    if (fs::exists(directoryPath / "sst") && fs::exists(directoryPath / "fiter")
+        && fs::is_directory(directoryPath / "sst") && fs::is_directory(directoryPath / "fiter")) {
         #ifdef DEBUG
             std::cout << "Directory exists." << db_name << std::endl;
         #endif
@@ -26,7 +27,8 @@ void Database::openDB(const string db_name) {
         #ifdef DEBUG
             std::cout << "Directory does not exist." << db_name <<  std::endl;
         #endif
-        fs::create_directory(directoryPath);
+        fs::create_directories(directoryPath / "sst");
+        fs::create_directory(directoryPath / "fiter");
     }
     memtable = new RBTree(memtable_capacity, memtable_root);
     bufferpool = new Bufferpool(constants::BUFFER_POOL_CAPACITY);
@@ -233,7 +235,7 @@ string Database::writeToSST() {
 
     // Create file name based on current time
     // TODO: modify file name to a smarter way
-    string file_name = constants::DATA_FOLDER + db_name + '/';
+    string file_name = constants::DATA_FOLDER + db_name + "/sst/";
     time_t current_time = time(0);
     clock_t current_clock = clock(); // In case there is a tie in time()
     file_name.append(to_string(current_time)).append(to_string(current_clock)).append("_").append(to_string(memtable->min_key)).append("_").append(to_string(memtable->max_key)).append("_").append(to_string(leaf_offset)).append(".bytes");
