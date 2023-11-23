@@ -54,7 +54,6 @@ void LSMTree::add_SST(const string& file_name) {
     }
 }
 
-// TODO: double-checking the logic
 void LSMTree::merge_down(vector<Level>::iterator cur_level) {
     cout << "merge_down" << endl;
     vector<Level>::iterator next_level;
@@ -71,7 +70,6 @@ void LSMTree::merge_down(vector<Level>::iterator cur_level) {
         assert(next_level->cur_size < constants::LSMT_SIZE_RATIO);
     }
 
-    // TODO: implement merge SST at current level to next level
     merge_down_helper(cur_level, next_level, cur_level->cur_size);
 
     // check the next_level if need to compact, if so recursion
@@ -80,7 +78,7 @@ void LSMTree::merge_down(vector<Level>::iterator cur_level) {
     }
 }
 
-// Merge x SSTs -> for further Dostoevsky and min-heap implementation
+// Merge x SSTs -> for Dostoevsky and min-heap implementation
 void LSMTree::merge_down_helper(vector<Level>::iterator cur_level, vector<Level>::iterator next_level, int num_sst) {
     cout << "merge_down_helper" << endl;
     assert(cur_level->cur_size == constants::LSMT_SIZE_RATIO);
@@ -98,7 +96,6 @@ void LSMTree::merge_down_helper(vector<Level>::iterator cur_level, vector<Level>
 
 
     // loop over kv pairs, if encounters two same key, only the more recent version is kept
-    // TODO: if the two files do not have keys overlap, we can simply append the result
     // TODO: output buffer and output file that stores the KV-pairs
     aligned_KV_vector sorted_KV;
 
