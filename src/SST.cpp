@@ -67,7 +67,7 @@ const int32_t SST::search_BTree_non_leaf_nodes(const int& fd, const fs::path& fi
     // Traverse B-Tree non-leaf nodes
     while (offset < leaf_offset) {
         // Read corresponding node
-        read(file_path.c_str(), fd, tmp, offset, false);
+        read(file_path.c_str(), fd, tmp, offset, false, false);
         curNode = (BTreeNode*)tmp;
 
         // Binary search
@@ -101,7 +101,7 @@ const int64_t* SST::search_SST_BTree(int& fd, const fs::path& file_path, const i
     // Binary search in the leaf node
     BTreeLeafNode* leafNode;
     char* tmp;
-    read(file_path.c_str(), fd, tmp, offset, true);
+    read(file_path.c_str(), fd, tmp, offset, false, true);
     leafNode = (BTreeLeafNode*)tmp;
 
     int low = 0;
@@ -143,7 +143,7 @@ const int64_t* SST::search_SST_Binary(int& fd, const fs::path& file_path, const 
         int curPage = floor((mid*constants::PAIR_SIZE) / constants::PAGE_SIZE);
         if (curPage != prevPage) {
             char* tmp;
-            read(file_path.c_str(), fd, tmp, leaf_offset + (curPage * constants::PAGE_SIZE), true);
+            read(file_path.c_str(), fd, tmp, leaf_offset + (curPage * constants::PAGE_SIZE), false, true);
             leafNode = (BTreeLeafNode*)tmp;
             prevPage = curPage;
         }
@@ -183,6 +183,7 @@ const int64_t* SST::search_SST(const fs::path& file_path, const int64_t& key, co
 
 void SST::scan(vector<pair<int64_t, int64_t>>*& sorted_KV, const int64_t& key1, const int64_t& key2, const bool& use_btree) {
     size_t len;
+    bool isLongScan = false;
 
     // Scan each SST
     for (auto file_path_itr = sorted_dir.rbegin(); file_path_itr != sorted_dir.rend(); ++file_path_itr) {
@@ -204,7 +205,7 @@ void SST::scan(vector<pair<int64_t, int64_t>>*& sorted_KV, const int64_t& key1, 
         len = sorted_KV->size();
 
         // Scan the SST
-        scan_SST(*sorted_KV, *file_path_itr, key1, key2, leaf_offset, use_btree);
+        scan_SST(*sorted_KV, *file_path_itr, key1, key2, leaf_offset, isLongScan, use_btree);
 
         // Merge into one sorted array
         // FIXME: ask Prof if merge() is allowed
@@ -217,7 +218,7 @@ const int32_t SST::scan_helper_BTree(const int& fd, const fs::path& file_path, c
     int32_t offset = search_BTree_non_leaf_nodes(fd, file_path, key1, leaf_offset);
     BTreeLeafNode* leafNode;
     char* tmp;
-    read(file_path.c_str(), fd, tmp, offset, true);
+    read(file_path.c_str(), fd, tmp, offset, false, true);
     leafNode = (BTreeLeafNode*)tmp;
 
     int low = 0;
@@ -256,7 +257,7 @@ const int32_t SST::scan_helper_Binary(const int& fd, const fs::path& file_path, 
         int curPage = floor((mid*constants::PAIR_SIZE) / constants::PAGE_SIZE);
         if (curPage != prevPage) {
             char* tmp;
-            read(file_path.c_str(), fd, tmp, leaf_offset + (curPage * constants::PAGE_SIZE), true);
+            read(file_path.c_str(), fd, tmp, leaf_offset + (curPage * constants::PAGE_SIZE), false, true);
             leafNode = (BTreeLeafNode*)tmp;
             prevPage = curPage;
         }
@@ -276,7 +277,7 @@ const int32_t SST::scan_helper_Binary(const int& fd, const fs::path& file_path, 
 
 // Scan SST to get keys within range
 // The implementation is similar with search_SST()
-void SST::scan_SST(vector<pair<int64_t, int64_t>>& sorted_KV, const string& file_path, const int64_t& key1, const int64_t& key2, const int32_t& leaf_offset, const bool& use_btree) {
+void SST::scan_SST(vector<pair<int64_t, int64_t>>& sorted_KV, const string& file_path, const int64_t& key1, const int64_t& key2, const int32_t& leaf_offset, bool& isLongScan, const bool& use_btree) {
     // Open the SST file
     int fd = open(file_path.c_str(), O_RDONLY | O_SYNC | O_DIRECT, 0777);
     #ifdef ASSERT
@@ -299,6 +300,8 @@ void SST::scan_SST(vector<pair<int64_t, int64_t>>& sorted_KV, const string& file
     BTreeLeafNode* leafNode;
     int prevPage = -1;
 
+    uint32_t scanRange = 0; // counts the number of pages that the scan spans
+    bool bufferHit = true;
     for (auto i=start; i < num_elements ; ++i) {
         // Record previous key to prevent reading redundant padded values
         if (i > start) {
@@ -307,8 +310,21 @@ void SST::scan_SST(vector<pair<int64_t, int64_t>>& sorted_KV, const string& file
         // Iterate each element and push to vector
         int curPage = floor((i*constants::PAIR_SIZE) / constants::PAGE_SIZE);
         if (curPage != prevPage) {
+            // Under long scan, since the page returned from read() is not in buffer pool, no eviction anymore and we need to delte it manually
+            if (isLongScan && !bufferHit) {
+                delete leafNode;
+            }
+            // If the scan is larger than SCAN_RANGE_LIMIT, then do not put ANY following pages into buffer pool (including ones from other SSTs)
+            ++scanRange;
+            if (!isLongScan && scanRange >= constants::SCAN_RANGE_LIMIT) {
+                #ifdef DEBUG
+                    cout << "Long-Range Scan detected. Disabling buffer pool..." << endl;
+                #endif
+                isLongScan = true;
+            }
+
             char* tmp;
-            read(file_path.c_str(), fd, tmp, leaf_offset + (curPage * constants::PAGE_SIZE), true);
+            bufferHit = read(file_path.c_str(), fd, tmp, leaf_offset + (curPage * constants::PAGE_SIZE), isLongScan, true);
             leafNode = (BTreeLeafNode*)tmp;
             prevPage = curPage;
         }
@@ -322,6 +338,9 @@ void SST::scan_SST(vector<pair<int64_t, int64_t>>& sorted_KV, const string& file
         } else {
             break; // until meeting the first value out of range
         }
+    }
+    if (isLongScan && !bufferHit) {
+        delete leafNode;
     }
 
     close(fd);
@@ -340,19 +359,28 @@ const string SST::parse_pid(const string& file_path, const int32_t& offset) {
 }
 
 // Read either from bufferpool or SST
-void SST::read(const string& file_path, int fd, char*& data, off_t offset, bool isLeaf) {
+// NOTE: for long scan (i.e. isLongScan=true), one needs to manually delete data to prevent memleak
+// Return: True if buffer hit, Flase if buffer miss
+bool SST::read(const string& file_path, const int& fd, char*& data, const off_t& offset, const bool& isLongScan, const bool& isLeaf) {
     const string p_id = parse_pid(file_path, offset);
     char* tmp;
     
-    if (constants::USE_BUFFER_POOL && buffer->get_from_buffer(p_id, tmp)) {}
-    else {
+    if (constants::USE_BUFFER_POOL && buffer->get_from_buffer(p_id, tmp)) {
+        data = tmp;
+        return true;
+    } else {
         tmp = (char*)new BTreeNode();
         int ret = pread(fd, tmp, constants::KEYS_PER_NODE * constants::PAIR_SIZE, offset);
         #ifdef ASSERT
             assert(ret == constants::KEYS_PER_NODE * constants::PAIR_SIZE);
         #endif
         
-        buffer->insert_to_buffer(p_id, isLeaf, tmp);
+        // If a range query is long, we do not save it to the buffer pool (aka evict immediately)
+        if (!isLongScan) {
+            buffer->insert_to_buffer(p_id, isLeaf, tmp);
+        }
+
+        data = tmp;
+        return false;
     }
-    data = tmp;
 }

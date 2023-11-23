@@ -17,4 +17,5 @@ namespace constants {
     const int MEMTABLE_SIZE = (1 << 20) / PAIR_SIZE; //1mb memtable
     const int BUFFER_POOL_CAPACITY = floor((MEMTABLE_SIZE * 0.1) / KEYS_PER_NODE); //10% of data, 100kb
     const bool USE_BUFFER_POOL = true;
+    const int SCAN_RANGE_LIMIT = 3;
 }
