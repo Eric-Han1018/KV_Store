@@ -287,7 +287,7 @@ void SST::scan_SST(vector<pair<int64_t, int64_t>>& sorted_KV, const string& file
     auto file_size = fs::file_size(file_path);
     int num_elements = (int)((file_size - leaf_offset) / constants::PAIR_SIZE);
 
-    int32_t start;
+    int32_t start = -1;
     if (use_btree && leaf_offset != 0) {
         start = scan_helper_BTree(fd, file_path, key1, leaf_offset);
     } else {
@@ -296,8 +296,8 @@ void SST::scan_SST(vector<pair<int64_t, int64_t>>& sorted_KV, const string& file
 
     // Low and high both points to what we are looking for
     pair<int64_t, int64_t> cur;
-    int64_t prev;
-    BTreeLeafNode* leafNode;
+    int64_t prev = -1;
+    BTreeLeafNode* leafNode = nullptr;
     int prevPage = -1;
 
     uint32_t scanRange = 0; // counts the number of pages that the scan spans
@@ -323,7 +323,7 @@ void SST::scan_SST(vector<pair<int64_t, int64_t>>& sorted_KV, const string& file
                 isLongScan = true;
             }
 
-            char* tmp;
+            char* tmp = nullptr;
             bufferHit = read(file_path.c_str(), fd, tmp, leaf_offset + (curPage * constants::PAGE_SIZE), isLongScan, true);
             leafNode = (BTreeLeafNode*)tmp;
             prevPage = curPage;
