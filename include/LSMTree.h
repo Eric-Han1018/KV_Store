@@ -6,17 +6,18 @@
 #include <algorithm>
 #include "constants.h"
 #include "bufferpool.h"
+#include "aligned_KV_vector.h"
 using namespace std;
 namespace fs = std::filesystem;
 
 class Level {
     public:
         size_t cur_size;
+        size_t max_size;    // TODO: will be useful if implement Dostoevsky
+        size_t level;
         vector<fs::path> sorted_dir;
 
-        Level() {
-            cur_size = 0;
-        };
+        Level(size_t max_size, size_t level) : cur_size(0), max_size(max_size), level(level) {};
 
         ~Level() {};
 
@@ -36,8 +37,9 @@ class LSMTree {
             //     sorted_dir.push_back(file_path);
             // }
             // sort(sorted_dir.begin(), sorted_dir.end());
-            while ((depth--) > 0) {
-                levels.emplace_back();
+            while (depth > 0) {
+                levels.emplace_back(Level(pow(constants::LSMT_SIZE_RATIO, depth), constants::LSMT_DEPTH - depth));
+                --depth;
             }
         }
 
@@ -46,6 +48,14 @@ class LSMTree {
         
         // LSMTree functions
         void add_SST(const string& file_name);
+        void print_lsmt() {
+            for (int i = 0; i < num_levels; ++i) {
+                cout << "level " << to_string(i) << " size: " << levels[i].cur_size << " level: " << levels[i].level << endl;
+                if (levels[i].cur_size > 0) {
+                    cout << " sorted_dir: " << levels[i].sorted_dir[0].c_str() << endl;
+                }
+            }
+        }
 
     private:
         const int64_t* search_SST(const fs::path& file_path, const int64_t& key, const int32_t& leaf_offset, const bool& use_btree);
@@ -61,5 +71,7 @@ class LSMTree {
 
         // LSMTree functions
         void merge_down(vector<Level>::iterator current);
-        void merge_down_helper(vector<Level>::iterator cur_level, vector<Level>::iterator next_level);
+        void merge_down_helper(vector<Level>::iterator cur_level, vector<Level>::iterator next_level, int num_sst);
+        int32_t convertToSST(vector<vector<BTreeNode>>& non_leaf_nodes, aligned_KV_vector& sorted_KV);
+        void insertHelper(vector<vector<BTreeNode>>& non_leaf_nodes, vector<int32_t>& counters, int64_t& key, int32_t current_level);
 };
