@@ -4,7 +4,7 @@
 using namespace std;
 
 typedef struct aligned_KV_vector {
-    alignas(constants::KEYS_PER_NODE * constants::PAIR_SIZE) pair<int64_t, int64_t> data[constants::MEMTABLE_SIZE];
+    alignas(constants::KEYS_PER_NODE * constants::PAIR_SIZE) pair<int64_t, int64_t> data[constants::MEMTABLE_SIZE]; //FIXME: PAGE_SIZE
     int32_t len = 0;
 
     int32_t size() {

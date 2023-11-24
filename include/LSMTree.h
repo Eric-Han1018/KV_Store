@@ -70,8 +70,8 @@ class LSMTree {
         void read(const string& file_path, int fd, char*& data, off_t offset, bool isLeaf);
 
         // LSMTree functions
-        void merge_down(vector<Level>::iterator current);
-        void merge_down_helper(vector<Level>::iterator cur_level, vector<Level>::iterator next_level, int num_sst);
+        void merge_down(const vector<Level>::iterator& current);
+        void merge_down_helper(const vector<Level>::iterator& cur_level, const vector<Level>::iterator& next_level, const int& num_sst, const bool& last_level);
         int32_t convertToSST(vector<vector<BTreeNode>>& non_leaf_nodes, aligned_KV_vector& sorted_KV);
         void insertHelper(vector<vector<BTreeNode>>& non_leaf_nodes, vector<int32_t>& counters, int64_t& key, int32_t current_level);
 };

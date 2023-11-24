@@ -54,23 +54,24 @@ void LSMTree::add_SST(const string& file_name) {
     }
 }
 
-void LSMTree::merge_down(vector<Level>::iterator cur_level) {
+void LSMTree::merge_down(const vector<Level>::iterator& cur_level) {
     cout << "merge_down" << endl;
     vector<Level>::iterator next_level;
     
+    // FIXME: Is this useful?
     if (cur_level->cur_size < constants::LSMT_SIZE_RATIO) {
         return; // No need to compact further
     } else {
         next_level = cur_level + 1;
     }
     
-    // recursively merge down if the next level doesn't have space
-    if (next_level->cur_size == constants::LSMT_SIZE_RATIO) {
-        merge_down(next_level);
-        assert(next_level->cur_size < constants::LSMT_SIZE_RATIO);
+    // We build up the BTree only after the last compaction
+    bool last_level = false;
+    if (next_level->cur_size + 1 < constants::LSMT_SIZE_RATIO) {
+        last_level = true;
     }
 
-    merge_down_helper(cur_level, next_level, cur_level->cur_size);
+    merge_down_helper(cur_level, next_level, cur_level->cur_size, last_level);
 
     // check the next_level if need to compact, if so recursion
     if (next_level->cur_size == constants::LSMT_SIZE_RATIO) {
@@ -79,19 +80,27 @@ void LSMTree::merge_down(vector<Level>::iterator cur_level) {
 }
 
 // Merge x SSTs -> for Dostoevsky and min-heap implementation
-void LSMTree::merge_down_helper(vector<Level>::iterator cur_level, vector<Level>::iterator next_level, int num_sst) {
+void LSMTree::merge_down_helper(const vector<Level>::iterator& cur_level, const vector<Level>::iterator& next_level, const int& num_sst, const bool& last_level) {
     cout << "merge_down_helper" << endl;
     assert(cur_level->cur_size == constants::LSMT_SIZE_RATIO);
 
+    // FIXME: 这个还有用吗
     vector<pair<int64_t, int64_t>> min_max_keys(num_sst); // pair<min_key, max_key>
     vector<int32_t> leaf_offsets(num_sst);
     vector<BTreeLeafNode> leafNodes(num_sst);
     vector<pair<int, int>> fds(num_sst); // pair<fd, ret> from open and pread
 
     for (int i = 0; i < num_sst; ++i) {
+        // FIXME: Seems that we no longer need min and max
         parse_SST_name(cur_level->sorted_dir[i], min_max_keys[i].first, min_max_keys[i].second, leaf_offsets[i]);
-        fds[i].first = open(cur_level->sorted_dir[i].c_str(), O_RDONLY | O_SYNC , 0777);
+        fds[i].first = open(cur_level->sorted_dir[i].c_str(), O_RDONLY | O_SYNC | O_DIRECT, 0777);
+        #ifdef ASSERT
+            assert(fds[i].first != -1);
+        #endif
         fds[i].second = pread(fds[i].first, (char*)&leafNodes[i], constants::PAGE_SIZE, leaf_offsets[i]);
+        #ifdef ASSERT
+            assert(fds[i].second == (int)(constants::PAGE_SIZE));
+        #endif
     }
 
 
@@ -118,60 +127,102 @@ void LSMTree::merge_down_helper(vector<Level>::iterator cur_level, vector<Level>
                 sorted_KV.emplace_back(x_leafNode.data[indices[0]].first, x_leafNode.data[indices[0]].second);
                 ++indices[0];
             }
-            if (x_leafNode.data[indices[0]].first == sorted_KV.back().first) { fds[0].second = -1; }
-            if (y_leafNode.data[indices[1]].first == sorted_KV.back().first) { fds[1].second = -1; }
+            if (x_leafNode.data[indices[0]].first == sorted_KV.back().first) { break; }
+            if (y_leafNode.data[indices[1]].first == sorted_KV.back().first) { break; }
         }
         for (int i = 0; i < num_sst; ++i) {
             while ((indices[i] * constants::PAIR_SIZE) < fds[i].second) { // add the rest of the elements in the page
                 sorted_KV.emplace_back(x_leafNode.data[indices[i]].first, x_leafNode.data[indices[i]].second);
                 if (x_leafNode.data[indices[i]].first == sorted_KV.back().first) { // padding detected
                     indices[i] = fds[i].second;
+                    break;
                 }
                 ++indices[i];
             }
         }
         for (int i = 0; i < num_sst; ++i) {
             if ((indices[i] * constants::PAIR_SIZE) >= fds[i].second) { // read next page
-                fds[i].second = pread(fds[i].first,  (char*)&x_leafNode, constants::PAGE_SIZE, leaf_offsets[i] + (pages_read[i] * constants::PAGE_SIZE));
+                fds[i].second = pread(fds[i].first, (char*)&x_leafNode, constants::PAGE_SIZE, leaf_offsets[i] + (pages_read[i] * constants::PAGE_SIZE));
                 ++pages_read[i];
                 indices[i] = 0;
             }     
         }
     }
 
-    // Below is the same logic as WriteToSST()
-    vector<vector<BTreeNode>> non_leaf_nodes; // Stores all leaf elements
-    int32_t leaf_offset = convertToSST(non_leaf_nodes, sorted_KV);
-
+    // Below is in similar logic as in WriteToSST()
+    // If it is not the last level, we do not build up the non-leaf nodes
     string output_filename = constants::DATA_FOLDER + db_name + '/';
     time_t current_time = time(0);
     clock_t current_clock = clock(); // In case there is a tie in time()
-    output_filename.append(to_string(current_time)).append(to_string(current_clock)).append("_").append(to_string(sorted_KV.data[0].first)).append("_").append(to_string(sorted_KV.back().first)).append("_").append(to_string(leaf_offset)).append(".bytes");
-    int fd = open(output_filename.c_str(), O_WRONLY | O_CREAT | O_SYNC , 0777);
-
-    int nbytes;
-    int offset = 0;
-    // Write non-leaf levels, starting from root
-    for (int32_t i = (int32_t)non_leaf_nodes.size() - 1; i >= 0; --i) {
-        vector<BTreeNode>& level = non_leaf_nodes[i];
-        nbytes = pwrite(fd, (char*)&level[0], level.size()*sizeof(BTreeNode), offset);
+    int32_t leaf_offset = 0;
+    if (!last_level) {
+        output_filename.append(to_string(current_time)).append(to_string(current_clock)).append("_").append(to_string(sorted_KV.data[0].first)).append("_").append(to_string(sorted_KV.back().first)).append("_").append(to_string(leaf_offset)).append(".bytes");
+        int fd = open(output_filename.c_str(), O_WRONLY | O_CREAT | O_SYNC | O_DIRECT, 0777);
         #ifdef ASSERT
-            assert(nbytes == (int)(level.size()*sizeof(BTreeNode)));
+            assert(fd != -1);
         #endif
-        offset += nbytes;
+
+        // We pad repeated last element to form a complete 4kb node
+        if ((int32_t)sorted_KV.size() % constants::KEYS_PER_NODE != 0) {
+            int padding = constants::KEYS_PER_NODE - ((int32_t)sorted_KV.size() % constants::KEYS_PER_NODE);
+            for (int32_t i = 0; i < padding; ++i) {
+                sorted_KV.emplace_back(sorted_KV.back());
+            }
+        }
+
+        int nbytes = pwrite(fd, (char*)&sorted_KV.data, sorted_KV.size()*constants::PAIR_SIZE, 0);
+        #ifdef ASSERT
+            assert(nbytes == (int)(sorted_KV.size()*constants::PAIR_SIZE));
+        #endif
+
+        int result = close(fd);
+        #ifdef ASSERT
+            assert(result != -1);
+        #endif
+    } else {
+        vector<vector<BTreeNode>> non_leaf_nodes; // Stores all leaf elements
+        leaf_offset = convertToSST(non_leaf_nodes, sorted_KV);
+
+        output_filename.append(to_string(current_time)).append(to_string(current_clock)).append("_").append(to_string(sorted_KV.data[0].first)).append("_").append(to_string(sorted_KV.back().first)).append("_").append(to_string(leaf_offset)).append(".bytes");
+        int fd = open(output_filename.c_str(), O_WRONLY | O_CREAT | O_SYNC | O_DIRECT, 0777);
+        #ifdef ASSERT
+            assert(fd != -1);
+        #endif
+
+        int nbytes;
+        int offset = 0;
+        // Write non-leaf levels, starting from root
+        for (int32_t i = (int32_t)non_leaf_nodes.size() - 1; i >= 0; --i) {
+            vector<BTreeNode>& level = non_leaf_nodes[i];
+            nbytes = pwrite(fd, (char*)&level[0], level.size()*sizeof(BTreeNode), offset);
+            #ifdef ASSERT
+                assert(nbytes == (int)(level.size()*sizeof(BTreeNode)));
+            #endif
+            offset += nbytes;
+        }
+
+        // Write clustered leaves
+        nbytes = pwrite(fd, (char*)&sorted_KV.data, sorted_KV.size()*constants::PAIR_SIZE, offset);
+        #ifdef ASSERT
+            assert(nbytes == (int)(sorted_KV.size()*constants::PAIR_SIZE));
+        #endif
+
+        int result = close(fd);
+        #ifdef ASSERT
+            assert(result != -1);
+        #endif
     }
-    
-    // Write clustered leaves
-    nbytes = pwrite(fd, (char*)&sorted_KV.data, sorted_KV.size()*constants::PAIR_SIZE, offset);
-    #ifdef ASSERT
-        assert(nbytes == (int)(sorted_KV.size()*constants::PAIR_SIZE));
-    #endif
 
-    close(fd);
-
+    // Compaction finished. Close and Remove all files on current level
     for (int i = 0; i < num_sst; ++i) {
-        close(fds[i].first);
-        remove(cur_level->sorted_dir[i]);
+        int result = close(fds[i].first);
+        #ifdef ASSERT
+            assert(result != -1);
+        #endif
+        bool remove_result = remove(cur_level->sorted_dir[i]);
+        #ifdef ASSERT
+            assert(remove_result);
+        #endif
     }
 
     // Add to the maintained directory list
@@ -427,7 +478,7 @@ const int64_t* LSMTree::search_SST_Binary(int& fd, const fs::path& file_path, co
 const int64_t* LSMTree::search_SST(const fs::path& file_path, const int64_t& key, const int32_t& leaf_offset, const bool& use_btree) {
     const int64_t* result = nullptr;
     // Open the SST file
-    int fd = open(file_path.c_str(), O_RDONLY | O_SYNC , 0777);
+    int fd = open(file_path.c_str(), O_RDONLY | O_SYNC | O_DIRECT, 0777);
 
     #ifdef ASSERT
         assert(fd != -1);
@@ -543,7 +594,7 @@ const int32_t LSMTree::scan_helper_Binary(const int& fd, const fs::path& file_pa
 // The implementation is similar with search_SST()
 void LSMTree::scan_SST(vector<pair<int64_t, int64_t>>& sorted_KV, const string& file_path, const int64_t& key1, const int64_t& key2, const int32_t& leaf_offset, const bool& use_btree) {
     // Open the SST file
-    int fd = open(file_path.c_str(), O_RDONLY | O_SYNC , 0777);
+    int fd = open(file_path.c_str(), O_RDONLY | O_SYNC | O_DIRECT, 0777);
 
     #ifdef ASSERT
         assert(fd != -1);
