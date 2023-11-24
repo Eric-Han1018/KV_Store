@@ -145,7 +145,7 @@ void print_B_Tree(vector<vector<BTreeNode>>& non_leaf_nodes, aligned_KV_vector& 
 }
 
 /* Write the levles in the B-Tree to a SST file
- * SST structure: |root|..next level..|...next level...|....sorted_KV (as leaf)....|
+ * SST structure: |....sorted_KV (as leaf)....|root|..next level..|...next level...|
  * Return: offset to leaf level
  */
 int32_t Database::convertToSST(vector<vector<BTreeNode>>& non_leaf_nodes, aligned_KV_vector& sorted_KV) {
@@ -180,7 +180,7 @@ int32_t Database::convertToSST(vector<vector<BTreeNode>>& non_leaf_nodes, aligne
     }
 
     // Change ptrs to independent file offsets
-    int32_t off = 0;
+    int32_t off = sorted_KV.size();
     for (int32_t i = (int32_t)non_leaf_nodes.size() - 1; i >= 0; --i) {
         vector<BTreeNode>& level = non_leaf_nodes[i];
         int32_t next_size;
@@ -200,7 +200,7 @@ int32_t Database::convertToSST(vector<vector<BTreeNode>>& non_leaf_nodes, aligne
                 } else {
                     // If it is the last non-leaf level, need to take offset as multiple of KV stores
                     if (i == 0) {
-                        offset = offset * constants::KEYS_PER_NODE * constants::PAIR_SIZE + off;
+                        offset = offset * constants::KEYS_PER_NODE * constants::PAIR_SIZE;
                     } else {
                         // Otherwise, just use BTreeNode size
                         offset = offset * (int32_t)sizeof(BTreeNode) + off;
@@ -215,7 +215,7 @@ int32_t Database::convertToSST(vector<vector<BTreeNode>>& non_leaf_nodes, aligne
 
     // FIXME: the current implementation is to add a root no matter if the number of KVs exceed a node's capacity
     // return non_leaf_nodes[0][0].size != 0 ? non_leaf_nodes[0][0].ptrs[0] : 0;
-    return non_leaf_nodes[0][0].ptrs[0];
+    return sorted_KV.size() * constants::PAIR_SIZE;
 }
 
 /* When memtable reaches its capacity, write it into an SST
@@ -227,16 +227,16 @@ string Database::writeToSST() {
     vector<vector<BTreeNode>> non_leaf_nodes; // Stores all leaf elements
     scan_memtable(sorted_KV, memtable->root);
 
-    int32_t leaf_offset;
+    int32_t leaf_ends;
     
-    leaf_offset = convertToSST(non_leaf_nodes, sorted_KV);
+    leaf_ends = convertToSST(non_leaf_nodes, sorted_KV);
 
     // Create file name based on current time
     // TODO: modify file name to a smarter way
     string file_name = constants::DATA_FOLDER + db_name + '/';
     time_t current_time = time(0);
     clock_t current_clock = clock(); // In case there is a tie in time()
-    file_name.append(to_string(current_time)).append(to_string(current_clock)).append("_").append(to_string(memtable->min_key)).append("_").append(to_string(memtable->max_key)).append("_").append(to_string(leaf_offset)).append(".bytes");
+    file_name.append(to_string(current_time)).append(to_string(current_clock)).append("_").append(to_string(memtable->min_key)).append("_").append(to_string(memtable->max_key)).append("_").append(to_string(leaf_ends)).append(".bytes");
 
     // Write data structure to binary file
     // FIXME: do we need O_DIRECT for now?
@@ -247,6 +247,12 @@ string Database::writeToSST() {
 
     int nbytes;
     int offset = 0;
+    // Write clustered leaves
+    nbytes = pwrite(fd, (char*)&sorted_KV.data, sorted_KV.size()*constants::PAIR_SIZE, offset);
+    #ifdef ASSERT
+        assert(nbytes == (int)(sorted_KV.size()*constants::PAIR_SIZE));
+    #endif
+    offset += nbytes;
     // Write non-leaf levels, starting from root
     for (int32_t i = (int32_t)non_leaf_nodes.size() - 1; i >= 0; --i) {
         vector<BTreeNode>& level = non_leaf_nodes[i];
@@ -256,12 +262,6 @@ string Database::writeToSST() {
         #endif
         offset += nbytes;
     }
-    
-    // Write clustered leaves
-    nbytes = pwrite(fd, (char*)&sorted_KV.data, sorted_KV.size()*constants::PAIR_SIZE, offset);
-    #ifdef ASSERT
-        assert(nbytes == (int)(sorted_KV.size()*constants::PAIR_SIZE));
-    #endif
 
     close(fd);
 

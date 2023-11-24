@@ -23,8 +23,9 @@ const int64_t* SST::get(const int64_t& key, const bool& use_btree) {
         #endif
         // Skip if the key is not between min_key and max_key
         int64_t min_key, max_key;
-        int32_t leaf_offset;
-        parse_SST_name(*file_path_itr, min_key, max_key, leaf_offset);
+        size_t file_end = fs::file_size(*file_path_itr);
+        size_t non_leaf_start;
+        parse_SST_name(*file_path_itr, min_key, max_key, non_leaf_start);
         if (key < min_key || key > max_key) {
             #ifdef DEBUG
                 cout << "key is not in range of: " << *file_path_itr << endl;
@@ -32,7 +33,7 @@ const int64_t* SST::get(const int64_t& key, const bool& use_btree) {
             continue;
         }
 
-        const int64_t* value = search_SST(*file_path_itr, key, leaf_offset, use_btree);
+        const int64_t* value = search_SST(*file_path_itr, key, file_end, non_leaf_start, use_btree);
         if (value != nullptr) return value;
         #ifdef DEBUG
             cout << "Not found key: " << key << " in file: " << *file_path_itr << endl;
@@ -43,7 +44,7 @@ const int64_t* SST::get(const int64_t& key, const bool& use_btree) {
 }
 
 // Get min_key and max_key from a SST file's name
-void SST::parse_SST_name(const string& file_name, int64_t& min_key, int64_t& max_key, int32_t& leaf_offset) {
+void SST::parse_SST_name(const string& file_name, int64_t& min_key, int64_t& max_key, size_t& file_end) {
     vector<string> parsed_name(4);
     string segment;
     stringstream name_stream(file_name);
@@ -55,17 +56,17 @@ void SST::parse_SST_name(const string& file_name, int64_t& min_key, int64_t& max
 
     min_key = strtoll(file_name.substr(first+1, second - first - 1).c_str(), nullptr, 10);
     max_key = strtoll(file_name.substr(second+1, last - second - 1).c_str(), nullptr, 10);
-    leaf_offset = stoi(file_name.substr(last+1, dot - last - 1));
+    file_end = stoi(file_name.substr(last+1, dot - last - 1));
 }
 
 // Search in BTree non-leaf nodes to find the offset of the leaf
-const int32_t SST::search_BTree_non_leaf_nodes(const int& fd, const fs::path& file_path, const int64_t& key, const int32_t& leaf_offset) {
-    int32_t offset = 0;
+const int32_t SST::search_BTree_non_leaf_nodes(const int& fd, const fs::path& file_path, const int64_t& key, const size_t& file_end, const size_t& non_leaf_start) {
+    int32_t offset = non_leaf_start;
     BTreeNode* curNode;
     char* tmp;
 
     // Traverse B-Tree non-leaf nodes
-    while (offset < leaf_offset) {
+    while (offset >= non_leaf_start) {
         // Read corresponding node
         read(file_path.c_str(), fd, tmp, offset, false);
         curNode = (BTreeNode*)tmp;
@@ -95,9 +96,9 @@ const int32_t SST::search_BTree_non_leaf_nodes(const int& fd, const fs::path& fi
 }
 
 // Perform BTree search in SST
-const int64_t* SST::search_SST_BTree(int& fd, const fs::path& file_path, const int64_t& key, const int32_t& leaf_offset) {
+const int64_t* SST::search_SST_BTree(int& fd, const fs::path& file_path, const int64_t& key, const size_t& file_end, const size_t& non_leaf_start) {
     // Search BTree non-leaf nodes to find the offset of leaf
-    const int32_t offset = search_BTree_non_leaf_nodes(fd, file_path, key, leaf_offset);
+    const int32_t offset = search_BTree_non_leaf_nodes(fd, file_path, key, file_end, non_leaf_start);
     // Binary search in the leaf node
     BTreeLeafNode* leafNode;
     char* tmp;
@@ -124,9 +125,8 @@ const int64_t* SST::search_SST_BTree(int& fd, const fs::path& file_path, const i
 }
 
 // Perform original binary search in SST
-const int64_t* SST::search_SST_Binary(int& fd, const fs::path& file_path, const int64_t& key, const int32_t& leaf_offset) {
-    auto file_size = fs::file_size(file_path);
-    auto num_elements = (file_size - leaf_offset) / constants::PAIR_SIZE;
+const int64_t* SST::search_SST_Binary(int& fd, const fs::path& file_path, const int64_t& key, const size_t& file_end, const size_t& non_leaf_start) {
+    auto num_elements = non_leaf_start / constants::PAIR_SIZE;
 
     // Variables used in binary search
     pair<int64_t, int64_t> cur;
@@ -143,7 +143,7 @@ const int64_t* SST::search_SST_Binary(int& fd, const fs::path& file_path, const 
         int curPage = floor((mid*constants::PAIR_SIZE) / constants::PAGE_SIZE);
         if (curPage != prevPage) {
             char* tmp;
-            read(file_path.c_str(), fd, tmp, leaf_offset + (curPage * constants::PAGE_SIZE), true);
+            read(file_path.c_str(), fd, tmp, (curPage * constants::PAGE_SIZE), true);
             leafNode = (BTreeLeafNode*)tmp;
             prevPage = curPage;
         }
@@ -162,7 +162,7 @@ const int64_t* SST::search_SST_Binary(int& fd, const fs::path& file_path, const 
 }
 
 // Helper function to search the key in a SST file
-const int64_t* SST::search_SST(const fs::path& file_path, const int64_t& key, const int32_t& leaf_offset, const bool& use_btree) {
+const int64_t* SST::search_SST(const fs::path& file_path, const int64_t& key, const size_t& file_end, const size_t& non_leaf_start, const bool& use_btree) {
     const int64_t* result = nullptr;
     // Open the SST file
     int fd = open(file_path.c_str(), O_RDONLY | O_SYNC | O_DIRECT, 0777);
@@ -170,10 +170,10 @@ const int64_t* SST::search_SST(const fs::path& file_path, const int64_t& key, co
         assert(fd != -1);
     #endif
 
-    if (use_btree && leaf_offset != 0) {
-        result = search_SST_BTree(fd, file_path, key, leaf_offset);
+    if (use_btree) {
+        result = search_SST_BTree(fd, file_path, key, file_end, non_leaf_start);
     } else {
-        result = search_SST_Binary(fd, file_path, key, leaf_offset);
+        result = search_SST_Binary(fd, file_path, key, file_end, non_leaf_start);
     }
     
     close(fd);
@@ -191,8 +191,9 @@ void SST::scan(vector<pair<int64_t, int64_t>>*& sorted_KV, const int64_t& key1, 
         #endif
         // Skip if the keys is not between min_key and max_key
         int64_t min_key, max_key;
-        int32_t leaf_offset;
-        parse_SST_name(*file_path_itr, min_key, max_key, leaf_offset);
+        size_t file_end = fs::file_size(*file_path_itr);
+        size_t non_leaf_start;
+        parse_SST_name(*file_path_itr, min_key, max_key, non_leaf_start);
         if (key2 < min_key || key1 > max_key) {
             #ifdef DEBUG
                 cout << "key is not in range of: " << *file_path_itr << endl;
@@ -204,7 +205,7 @@ void SST::scan(vector<pair<int64_t, int64_t>>*& sorted_KV, const int64_t& key1, 
         len = sorted_KV->size();
 
         // Scan the SST
-        scan_SST(*sorted_KV, *file_path_itr, key1, key2, leaf_offset, use_btree);
+        scan_SST(*sorted_KV, *file_path_itr, key1, key2, file_end, non_leaf_start, use_btree);
 
         // Merge into one sorted array
         // FIXME: ask Prof if merge() is allowed
@@ -213,8 +214,8 @@ void SST::scan(vector<pair<int64_t, int64_t>>*& sorted_KV, const int64_t& key1, 
     }
 }
 
-const int32_t SST::scan_helper_BTree(const int& fd, const fs::path& file_path, const int64_t& key1, const int32_t& leaf_offset) {
-    int32_t offset = search_BTree_non_leaf_nodes(fd, file_path, key1, leaf_offset);
+const int32_t SST::scan_helper_BTree(const int& fd, const fs::path& file_path, const int64_t& key1, const size_t& file_end, const size_t& non_leaf_start) {
+    int32_t offset = search_BTree_non_leaf_nodes(fd, file_path, key1, file_end, non_leaf_start);
     BTreeLeafNode* leafNode;
     char* tmp;
     read(file_path.c_str(), fd, tmp, offset, true);
@@ -236,10 +237,10 @@ const int32_t SST::scan_helper_BTree(const int& fd, const fs::path& file_path, c
             high = mid; // target can at mid or in left half
         }
     }
-    return (int)((offset - leaf_offset) / constants::PAIR_SIZE) + low;
+    return (int)(offset / constants::PAIR_SIZE) + low;
 }
 
-const int32_t SST::scan_helper_Binary(const int& fd, const fs::path& file_path, const int64_t& key1, const int32_t& num_elements, const int32_t& leaf_offset) {
+const int32_t SST::scan_helper_Binary(const int& fd, const fs::path& file_path, const int64_t& key1, const int32_t& num_elements, const size_t& file_end, const size_t& non_leaf_start) {
     // Variables used in binary search
     pair<int64_t, int64_t> cur;
     BTreeLeafNode* leafNode;
@@ -256,7 +257,7 @@ const int32_t SST::scan_helper_Binary(const int& fd, const fs::path& file_path, 
         int curPage = floor((mid*constants::PAIR_SIZE) / constants::PAGE_SIZE);
         if (curPage != prevPage) {
             char* tmp;
-            read(file_path.c_str(), fd, tmp, leaf_offset + (curPage * constants::PAGE_SIZE), true);
+            read(file_path.c_str(), fd, tmp, (curPage * constants::PAGE_SIZE), true);
             leafNode = (BTreeLeafNode*)tmp;
             prevPage = curPage;
         }
@@ -276,21 +277,20 @@ const int32_t SST::scan_helper_Binary(const int& fd, const fs::path& file_path, 
 
 // Scan SST to get keys within range
 // The implementation is similar with search_SST()
-void SST::scan_SST(vector<pair<int64_t, int64_t>>& sorted_KV, const string& file_path, const int64_t& key1, const int64_t& key2, const int32_t& leaf_offset, const bool& use_btree) {
+void SST::scan_SST(vector<pair<int64_t, int64_t>>& sorted_KV, const string& file_path, const int64_t& key1, const int64_t& key2, const size_t& file_end, const size_t& non_leaf_start, const bool& use_btree) {
     // Open the SST file
     int fd = open(file_path.c_str(), O_RDONLY | O_SYNC | O_DIRECT, 0777);
     #ifdef ASSERT
         assert(fd != -1);
     #endif
 
-    auto file_size = fs::file_size(file_path);
-    int num_elements = (int)((file_size - leaf_offset) / constants::PAIR_SIZE);
+    int num_elements = (int)(non_leaf_start / constants::PAIR_SIZE);
 
     int32_t start;
-    if (use_btree && leaf_offset != 0) {
-        start = scan_helper_BTree(fd, file_path, key1, leaf_offset);
+    if (use_btree) {
+        start = scan_helper_BTree(fd, file_path, key1, file_end, non_leaf_start);
     } else {
-        start = scan_helper_Binary(fd, file_path, key1, num_elements, leaf_offset);
+        start = scan_helper_Binary(fd, file_path, key1, num_elements, file_end, non_leaf_start);
     }
 
     // Low and high both points to what we are looking for
@@ -308,7 +308,7 @@ void SST::scan_SST(vector<pair<int64_t, int64_t>>& sorted_KV, const string& file
         int curPage = floor((i*constants::PAIR_SIZE) / constants::PAGE_SIZE);
         if (curPage != prevPage) {
             char* tmp;
-            read(file_path.c_str(), fd, tmp, leaf_offset + (curPage * constants::PAGE_SIZE), true);
+            read(file_path.c_str(), fd, tmp, (curPage * constants::PAGE_SIZE), true);
             leafNode = (BTreeLeafNode*)tmp;
             prevPage = curPage;
         }
