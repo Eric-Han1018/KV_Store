@@ -60,6 +60,7 @@ void LSMTree::add_SST(const string& file_name) {
     }
 }
 
+// Compact the current level on LSMTree to next level
 void LSMTree::merge_down(const vector<Level>::iterator& cur_level) {
     #ifdef DEBUG
         cout << "merge_down" << endl;
@@ -90,7 +91,8 @@ void LSMTree::merge_down(const vector<Level>::iterator& cur_level) {
     }
 }
 
-// Merge x SSTs -> for Dostoevsky and min-heap implementation
+// TODO: Merge x SSTs -> for Dostoevsky and min-heap implementation
+// Helper functions to compact SSTs in current level and send to next level
 void LSMTree::merge_down_helper(const vector<Level>::iterator& cur_level, const vector<Level>::iterator& next_level, const int& num_sst, const bool& last_level) {
     #ifdef DEBUG
         cout << "merge_down_helper" << endl;

@@ -48,6 +48,10 @@ class LSMTree {
         
         // LSMTree functions
         void add_SST(const string& file_name);
+        // Check if the FIRST level of LSMTree is full
+        inline bool check_LSMTree_compaction() {
+            return levels[0].cur_size + 1 < constants::LSMT_SIZE_RATIO;
+        }
         void print_lsmt() {
             for (int i = 0; i < num_levels; ++i) {
                 cout << "level " << to_string(i) << " size: " << levels[i].cur_size << " level: " << levels[i].level << endl;

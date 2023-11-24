@@ -220,7 +220,7 @@ int32_t Database::convertToSST(vector<vector<BTreeNode>>& non_leaf_nodes, aligne
 }
 
 /* When memtable reaches its capacity, write it into an SST
- * File name format: timeclock_min_max_leafOffset.bytes
+ * File name format: timeclock_min_max_leaf-end-offset.bytes
  */
 string Database::writeToSST() {
     // Content in std::vector is stored contiguously
@@ -229,8 +229,22 @@ string Database::writeToSST() {
     scan_memtable(sorted_KV, memtable->root);
 
     int32_t leaf_ends;
+    bool ifCompact = lsmtree->check_LSMTree_compaction(); // Check if we need to perform compaction in LSMTree
     
-    leaf_ends = convertToSST(non_leaf_nodes, sorted_KV);
+    // We only build up the BTree if we do not need any compaction
+    if (ifCompact) {
+        leaf_ends = convertToSST(non_leaf_nodes, sorted_KV);
+    } else {
+        leaf_ends = sorted_KV.size() * constants::PAIR_SIZE;
+        // We pad repeated last element to make it 4kb aligned
+        if ((int32_t)sorted_KV.size() % constants::KEYS_PER_NODE != 0) {
+            int32_t padding = constants::KEYS_PER_NODE - ((int32_t)sorted_KV.size() % constants::KEYS_PER_NODE);
+            for (int32_t i = 0; i < padding; ++i) {
+                sorted_KV.emplace_back(sorted_KV.back());
+            }
+        }
+    }
+
 
     // Create file name based on current time
     // TODO: modify file name to a smarter way
@@ -253,15 +267,18 @@ string Database::writeToSST() {
     #ifdef ASSERT
         assert(nbytes == (int)(sorted_KV.size()*constants::PAIR_SIZE));
     #endif
-    offset += nbytes;
-    // Write non-leaf levels, starting from root
-    for (int32_t i = (int32_t)non_leaf_nodes.size() - 1; i >= 0; --i) {
-        vector<BTreeNode>& level = non_leaf_nodes[i];
-        nbytes = pwrite(fd, (char*)&level[0], level.size()*sizeof(BTreeNode), offset);
-        #ifdef ASSERT
-            assert(nbytes == (int)(level.size()*sizeof(BTreeNode)));
-        #endif
+
+    if (ifCompact) {
         offset += nbytes;
+        // Write non-leaf levels, starting from root
+        for (int32_t i = (int32_t)non_leaf_nodes.size() - 1; i >= 0; --i) {
+            vector<BTreeNode>& level = non_leaf_nodes[i];
+            nbytes = pwrite(fd, (char*)&level[0], level.size()*sizeof(BTreeNode), offset);
+            #ifdef ASSERT
+                assert(nbytes == (int)(level.size()*sizeof(BTreeNode)));
+            #endif
+            offset += nbytes;
+        }
     }
 
     close(fd);
