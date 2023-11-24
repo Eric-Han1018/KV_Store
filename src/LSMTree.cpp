@@ -105,6 +105,7 @@ void LSMTree::merge_down_helper(const vector<Level>::iterator& cur_level, const 
     vector<pair<int64_t, int64_t>> min_max_keys(num_sst); // pair<min_key, max_key>
     vector<size_t> leaf_ends(num_sst, -1);
     vector<BTreeLeafNode> leafNodes(num_sst);
+    // FIXME: ret好像没啥用诶
     vector<pair<int, int>> fds(num_sst); // pair<fd, ret> from open and pread
 
     for (int i = 0; i < num_sst; ++i) {
@@ -123,12 +124,12 @@ void LSMTree::merge_down_helper(const vector<Level>::iterator& cur_level, const 
 
     // loop over kv pairs, if encounters two same key, only the more recent version is kept
     // TODO: output buffer and output file that stores the KV-pairs
-    aligned_KV_vector sorted_KV;
+    aligned_KV_vector sorted_KV(constants::MEMTABLE_SIZE);
 
     vector<int> pages_read(num_sst, 1);
     vector<int> indices(num_sst, 0);
-    BTreeLeafNode x_leafNode = leafNodes[0];
-    BTreeLeafNode y_leafNode = leafNodes[1];
+    BTreeLeafNode& x_leafNode = leafNodes[0]; // FIXME/TODO/NOTE: use reference to avoid making a copy
+    BTreeLeafNode& y_leafNode = leafNodes[1];
 
     // Btree variables
     vector<vector<BTreeNode>> non_leaf_nodes; // Stores all leaf elements
@@ -137,7 +138,7 @@ void LSMTree::merge_down_helper(const vector<Level>::iterator& cur_level, const 
 
     // TODO: can be changed to Dostoevsky and min-heap implementation
     while (fds[0].second > 0 || fds[1].second > 0) {
-        while ((indices[0] * constants::PAIR_SIZE) < fds[0].second && (indices[1] * constants::PAIR_SIZE) < fds[1].second) {
+        while (indices[0] < constants::KEYS_PER_NODE && indices[1] < constants::KEYS_PER_NODE) {
             if (x_leafNode.data[indices[0]].first == y_leafNode.data[indices[1]].first) {
                 sorted_KV.emplace_back(y_leafNode.data[indices[1]].first, y_leafNode.data[indices[1]].second);
                 // Build the BTree non-leaf node
@@ -161,8 +162,8 @@ void LSMTree::merge_down_helper(const vector<Level>::iterator& cur_level, const 
                 }
                 ++indices[0];
             }
-            if (x_leafNode.data[indices[0]].first == sorted_KV.back().first) { break; }
-            if (y_leafNode.data[indices[1]].first == sorted_KV.back().first) { break; }
+            if (indices[0] < constants::KEYS_PER_NODE && x_leafNode.data[indices[0]].first == sorted_KV.back().first) { break; }
+            if (indices[1] < constants::KEYS_PER_NODE && y_leafNode.data[indices[1]].first == sorted_KV.back().first) { break; }
         }
         for (int i = 0; i < num_sst; ++i) {
             while ((indices[i] * constants::PAIR_SIZE) < fds[i].second) { // add the rest of the elements in the page
@@ -215,7 +216,7 @@ void LSMTree::merge_down_helper(const vector<Level>::iterator& cur_level, const 
     #endif
 
     // Write Leaf Nodes
-    int nbytes = pwrite(fd, (char*)&sorted_KV.data, sorted_KV.size()*constants::PAIR_SIZE, 0);
+    int nbytes = pwrite(fd, (char*)sorted_KV.data, sorted_KV.size()*constants::PAIR_SIZE, 0);
     #ifdef ASSERT
         assert(nbytes == (int)(sorted_KV.size()*constants::PAIR_SIZE));
     #endif

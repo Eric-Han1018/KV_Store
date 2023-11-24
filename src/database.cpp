@@ -224,7 +224,7 @@ int32_t Database::convertToSST(vector<vector<BTreeNode>>& non_leaf_nodes, aligne
  */
 string Database::writeToSST() {
     // Content in std::vector is stored contiguously
-    aligned_KV_vector sorted_KV; // Stores all non-leaf elements
+    aligned_KV_vector sorted_KV(constants::MEMTABLE_SIZE); // Stores all non-leaf elements
     vector<vector<BTreeNode>> non_leaf_nodes; // Stores all leaf elements
     scan_memtable(sorted_KV, memtable->root);
 
@@ -263,7 +263,7 @@ string Database::writeToSST() {
     int nbytes;
     int offset = 0;
     // Write clustered leaves
-    nbytes = pwrite(fd, (char*)&sorted_KV.data, sorted_KV.size()*constants::PAIR_SIZE, offset);
+    nbytes = pwrite(fd, (char*)sorted_KV.data, sorted_KV.size()*constants::PAIR_SIZE, offset);
     #ifdef ASSERT
         assert(nbytes == (int)(sorted_KV.size()*constants::PAIR_SIZE));
     #endif
