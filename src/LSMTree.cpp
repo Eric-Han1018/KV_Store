@@ -71,7 +71,7 @@ void LSMTree::merge_down(vector<Level>::iterator cur_level) {
     }
 
     merge_down_helper(cur_level, next_level, cur_level->cur_size);
-
+    cout << "************" << endl;
     // check the next_level if need to compact, if so recursion
     if (next_level->cur_size == constants::LSMT_SIZE_RATIO) {
         merge_down(next_level);
@@ -183,6 +183,7 @@ void LSMTree::merge_down_helper(vector<Level>::iterator cur_level, vector<Level>
         ++num_levels;
     }
     print_lsmt();
+    cout << "??????" << endl;
 }
 
 // TEMPORARY COPY FUNCTIONS convertToSST AND insertHelper FOR SIMPLICITY 
@@ -471,9 +472,36 @@ void LSMTree::scan(vector<pair<int64_t, int64_t>>*& sorted_KV, const int64_t& ke
             scan_SST(*sorted_KV, *file_path_itr, key1, key2, leaf_offset, use_btree);
 
             // Merge into one sorted array
-            // FIXME: ask Prof if merge() is allowed
-            // FIXME: is using merge efficient?
-            inplace_merge(sorted_KV->begin(), sorted_KV->begin()+len, sorted_KV->end());
+            // inplace_merge(sorted_KV->begin(), sorted_KV->begin()+len, sorted_KV->end());
+            std::vector<std::pair<int64_t, int64_t>> tmp;
+            tmp.reserve(sorted_KV->size());
+            size_t i = 0, j = len;
+            while (i < len && j < sorted_KV->size()) {
+                if ((*sorted_KV)[i].first < (*sorted_KV)[j].first) {
+                    cout << "[i].first" << (*sorted_KV)[i].first << endl;
+                    cout << "[j].first" << (*sorted_KV)[j].first << endl;
+                    tmp.emplace_back((*sorted_KV)[i]);
+                    ++i;
+                } 
+                else if ((*sorted_KV)[i].first > (*sorted_KV)[j].first) {
+                    tmp.emplace_back((*sorted_KV)[j]);
+                    ++j;
+                } 
+                else {
+                    tmp.emplace_back((*sorted_KV)[i]);
+                    ++i;
+                    ++j; 
+                }
+            }
+            while (i < len) {
+                tmp.emplace_back((*sorted_KV)[i]);
+                ++i;
+            }
+            while (j < sorted_KV->size()) {
+                tmp.emplace_back((*sorted_KV)[j]);
+                ++j;
+            }
+            *sorted_KV = move(tmp);
         }
     }
 }
