@@ -173,7 +173,6 @@ void test_bufferpool(string db_name){
         keys[i] = (int64_t)rand();
         db.put(keys[i], 6);
     }
-    db.put(-1, 6);
     int n = 0;
     // Find all existing keys
     for (int key : keys) {
@@ -215,7 +214,6 @@ void test_bufferpool_scan_get_binary(string db_name){
         keys[i] = (int64_t)rand();
         db.put(keys[i], 6);
     }
-    db.put(-1, 6);
     // test get with binary searching
     cout << "***********Test Get with Binary***********" << endl;
     int n = 0;

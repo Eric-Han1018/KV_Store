@@ -163,7 +163,9 @@ void LSMTree::merge_down_helper(const vector<Level>::iterator& cur_level, const 
         minHeap.pop();
 
         // Add to result if it's the first element or a non-duplicate
-        if (output_buffer.size() == 0 || output_buffer.back().first != node.data.first) {
+        if ((total_count == 0) || // If it is the first element we ever inserted
+            (output_buffer.size() == 0 && last_kv.first != node.data.first) || // Compare current node with the last element in the flushed buffer
+            (output_buffer.size() != 0 && output_buffer.back().first != node.data.first)) { // Compare current node with the last element in the current buffer
             output_buffer.emplace_back(node.data);
             ++total_count;
             // Build the BTree non-leaf node
@@ -200,10 +202,12 @@ void LSMTree::merge_down_helper(const vector<Level>::iterator& cur_level, const 
     if (total_count % constants::KEYS_PER_NODE != 0) {
         int padding = constants::KEYS_PER_NODE - (total_count % constants::KEYS_PER_NODE);
         for (int32_t i = 0; i < padding; ++i) {
-            if (last_kv.first != -1 && last_kv.second != -1) {
-                output_buffer.emplace_back(last_kv);
-            } else {
+            if (output_buffer.size() > 0) { // Pad with the last element in the buffer
                 output_buffer.emplace_back(output_buffer.back());
+            } else {
+                #ifdef ASSERT
+                    assert(false); // If output_buffer is empty, then no need to pad
+                #endif
             }
         }
         total_count += padding;
