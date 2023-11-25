@@ -251,7 +251,7 @@ string Database::writeToSST() {
     string file_name = constants::DATA_FOLDER + db_name + '/';
     time_t current_time = time(0);
     clock_t current_clock = clock(); // In case there is a tie in time()
-    file_name.append(to_string(current_time)).append(to_string(current_clock)).append("_").append(to_string(memtable->min_key)).append("_").append(to_string(memtable->max_key)).append("_").append(to_string(leaf_ends)).append(".bytes");
+    file_name.append(to_string(current_time)).append(to_string(current_clock)).append("_").append(to_string(-1)).append("_").append(to_string(-1)).append("_").append(to_string(leaf_ends)).append(".bytes");
 
     // Write data structure to binary file
     // FIXME: do we need O_DIRECT for now?

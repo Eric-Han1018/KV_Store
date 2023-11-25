@@ -1,6 +1,7 @@
 #pragma once
 #include <iostream>
 #include <cassert>
+#include <unistd.h>
 #include "constants.h"
 using namespace std;
 
@@ -41,6 +42,10 @@ class aligned_KV_vector {
             data[len].first = key;
             data[len].second = value;
             ++len;
+            // FIXME: This is so slow, remember to delete it
+            #ifdef ASSERT
+                assert(is_sorted(data, data+len));
+            #endif
         }
 
         void push_back(pair<int64_t, int64_t> entry) {
@@ -60,10 +65,36 @@ class aligned_KV_vector {
             ++len;
         }
 
-        pair<int64_t, int64_t> back() {
+        inline pair<int64_t, int64_t> back() {
             #ifdef ASSERT
                 assert(len <= max_len);
             #endif
             return data[len - 1];
+        }
+
+        inline bool isFull() {
+            #ifdef ASSERT
+                assert(len <= max_len);
+            #endif
+            return len == max_len;
+        }
+
+        // When the buffer is full, flush data into a file
+        // Return: the last key flushed
+        pair<int64_t, int64_t> flush_to_file(const int& fd, off_t& offset) {
+            #ifdef ASSERT
+                assert(isFull());
+            #endif
+            int nbytes = pwrite(fd, (char*)data, max_len * constants::PAIR_SIZE, offset);
+            #ifdef ASSERT
+                assert(nbytes == (int)(max_len * constants::PAIR_SIZE));
+            #endif
+            offset += max_len * constants::PAIR_SIZE;
+
+
+            // Clear the data
+            len = 0;
+
+            return data[max_len - 1];
         }
 };
