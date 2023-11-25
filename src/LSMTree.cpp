@@ -114,7 +114,7 @@ void LSMTree::merge_down_helper(const vector<Level>::iterator& cur_level, const 
     for (int i = 0; i < num_sst; ++i) {
         // FIXME: Seems that we no longer need min and max
         parse_SST_name(cur_level->sorted_dir[i], min_max_keys[i].first, min_max_keys[i].second, leaf_ends[i]);
-        fds[i].first = open(cur_level->sorted_dir[i].c_str(), O_RDONLY | O_SYNC | O_DIRECT, 0777);
+        fds[i].first = open(cur_level->sorted_dir[i].c_str(), O_RDONLY | O_SYNC, 0777);
         #ifdef ASSERT
             assert(fds[i].first != -1);
         #endif
@@ -135,7 +135,7 @@ void LSMTree::merge_down_helper(const vector<Level>::iterator& cur_level, const 
         assert(!fs::exists(output_filename + "temp.bytes"));
     #endif
     string temp_name = output_filename + "temp.bytes";
-    int fd = open(temp_name.c_str(), O_WRONLY | O_CREAT | O_SYNC | O_DIRECT, 0777);
+    int fd = open(temp_name.c_str(), O_WRONLY | O_CREAT | O_SYNC, 0777);
     #ifdef ASSERT
         assert(fd != -1);
     #endif
@@ -373,7 +373,7 @@ const int32_t LSMTree::search_BTree_non_leaf_nodes(const int& fd, const fs::path
     // Traverse B-Tree non-leaf nodes
     while (offset >= (int64_t)non_leaf_start) {
         // Read corresponding node
-        read(file_path.c_str(), fd, tmp, offset, false);
+        read(file_path.c_str(), fd, tmp, offset, false, false);
         curNode = (BTreeNode*)tmp;
         #ifdef ASSERT
             assert(curNode->size != 0);
@@ -417,7 +417,7 @@ const int64_t* LSMTree::search_SST_BTree(int& fd, const fs::path& file_path, con
     // Binary search in the leaf node
     BTreeLeafNode* leafNode;
     char* tmp;
-    read(file_path.c_str(), fd, tmp, offset, true);
+    read(file_path.c_str(), fd, tmp, offset, false, true);
     leafNode = (BTreeLeafNode*)tmp;
 
     int low = 0;
@@ -458,7 +458,7 @@ const int64_t* LSMTree::search_SST_Binary(int& fd, const fs::path& file_path, co
         int curPage = floor((mid*constants::PAIR_SIZE) / constants::PAGE_SIZE);
         if (curPage != prevPage) {
             char* tmp;
-            read(file_path.c_str(), fd, tmp, (curPage * constants::PAGE_SIZE), true);
+            read(file_path.c_str(), fd, tmp, (curPage * constants::PAGE_SIZE), false, true);
             leafNode = (BTreeLeafNode*)tmp;
             prevPage = curPage;
         }
@@ -480,7 +480,7 @@ const int64_t* LSMTree::search_SST_Binary(int& fd, const fs::path& file_path, co
 const int64_t* LSMTree::search_SST(const fs::path& file_path, const int64_t& key, const size_t& file_end, const size_t& non_leaf_start, const bool& use_btree) {
     const int64_t* result = nullptr;
     // Open the SST file
-    int fd = open(file_path.c_str(), O_RDONLY | O_SYNC | O_DIRECT, 0777);
+    int fd = open(file_path.c_str(), O_RDONLY | O_SYNC, 0777);
 
     #ifdef ASSERT
         assert(fd != -1);
@@ -499,6 +499,7 @@ const int64_t* LSMTree::search_SST(const fs::path& file_path, const int64_t& key
 
 void LSMTree::scan(vector<pair<int64_t, int64_t>>*& sorted_KV, const int64_t& key1, const int64_t& key2, const bool& use_btree) {
     size_t len;
+    bool isLongScan = false;
 
     // Scan each SST
     for (int i = 0; i < (int)num_levels; ++i) {
@@ -522,12 +523,37 @@ void LSMTree::scan(vector<pair<int64_t, int64_t>>*& sorted_KV, const int64_t& ke
             len = sorted_KV->size();
 
             // Scan the SST
-            scan_SST(*sorted_KV, *file_path_itr, key1, key2, file_end, non_leaf_start, use_btree);
+            scan_SST(*sorted_KV, *file_path_itr, key1, key2, file_end, non_leaf_start, isLongScan, use_btree);
 
             // Merge into one sorted array
-            // FIXME: ask Prof if merge() is allowed
-            // FIXME: is using merge efficient?
-            inplace_merge(sorted_KV->begin(), sorted_KV->begin()+len, sorted_KV->end());
+            // inplace_merge(sorted_KV->begin(), sorted_KV->begin()+len, sorted_KV->end());
+            std::vector<std::pair<int64_t, int64_t>> tmp;
+            tmp.reserve(sorted_KV->size());
+            size_t i = 0, j = len;
+            while (i < len && j < sorted_KV->size()) {
+                if ((*sorted_KV)[i].first < (*sorted_KV)[j].first) {
+                    tmp.emplace_back((*sorted_KV)[i]);
+                    ++i;
+                } 
+                else if ((*sorted_KV)[i].first > (*sorted_KV)[j].first) {
+                    tmp.emplace_back((*sorted_KV)[j]);
+                    ++j;
+                } 
+                else {
+                    tmp.emplace_back((*sorted_KV)[i]);
+                    ++i;
+                    ++j; 
+                }
+            }
+            while (i < len) {
+                tmp.emplace_back((*sorted_KV)[i]);
+                ++i;
+            }
+            while (j < sorted_KV->size()) {
+                tmp.emplace_back((*sorted_KV)[j]);
+                ++j;
+            }
+            *sorted_KV = std::move(tmp);
         }
     }
 }
@@ -537,7 +563,7 @@ const int32_t LSMTree::scan_helper_BTree(const int& fd, const fs::path& file_pat
     if (offset < 0) return -1;
     BTreeLeafNode* leafNode;
     char* tmp;
-    read(file_path.c_str(), fd, tmp, offset, true);
+    read(file_path.c_str(), fd, tmp, offset, false, true);
     leafNode = (BTreeLeafNode*)tmp;
 
     int low = 0;
@@ -576,7 +602,7 @@ const int32_t LSMTree::scan_helper_Binary(const int& fd, const fs::path& file_pa
         int curPage = floor((mid*constants::PAIR_SIZE) / constants::PAGE_SIZE);
         if (curPage != prevPage) {
             char* tmp;
-            read(file_path.c_str(), fd, tmp, (curPage * constants::PAGE_SIZE), true);
+            read(file_path.c_str(), fd, tmp, (curPage * constants::PAGE_SIZE), false, true);
             leafNode = (BTreeLeafNode*)tmp;
             prevPage = curPage;
         }
@@ -596,9 +622,9 @@ const int32_t LSMTree::scan_helper_Binary(const int& fd, const fs::path& file_pa
 
 // Scan SST to get keys within range
 // The implementation is similar with search_SST()
-void LSMTree::scan_SST(vector<pair<int64_t, int64_t>>& sorted_KV, const string& file_path, const int64_t& key1, const int64_t& key2, const size_t& file_end, const size_t& non_leaf_start, const bool& use_btree) {
+void LSMTree::scan_SST(vector<pair<int64_t, int64_t>>& sorted_KV, const string& file_path, const int64_t& key1, const int64_t& key2, const size_t& file_end, const size_t& non_leaf_start, bool& isLongScan, const bool& use_btree) {
     // Open the SST file
-    int fd = open(file_path.c_str(), O_RDONLY | O_SYNC | O_DIRECT, 0777);
+    int fd = open(file_path.c_str(), O_RDONLY | O_SYNC, 0777);
  
     #ifdef ASSERT
         assert(fd != -1);
@@ -606,7 +632,7 @@ void LSMTree::scan_SST(vector<pair<int64_t, int64_t>>& sorted_KV, const string& 
 
     int num_elements = (int)(non_leaf_start / constants::PAIR_SIZE);
 
-    int32_t start;
+    int32_t start = -1;
     if (use_btree) {
         start = scan_helper_BTree(fd, file_path, key1, file_end, non_leaf_start);
         if (start == -1) return;
@@ -616,9 +642,12 @@ void LSMTree::scan_SST(vector<pair<int64_t, int64_t>>& sorted_KV, const string& 
 
     // Low and high both points to what we are looking for
     pair<int64_t, int64_t> cur;
-    int64_t prev; // FIXME: init to tombstone?
+    int64_t prev = -1; // FIXME: init to tombstone?
     BTreeLeafNode* leafNode = nullptr;
     int prevPage = -1;
+
+    uint32_t scanRange = 0; // counts the number of pages that the scan spans
+    bool bufferHit = true;
 
     for (auto i=start; i < num_elements ; ++i) {
         // Record previous key to prevent reading redundant padded values
@@ -628,8 +657,21 @@ void LSMTree::scan_SST(vector<pair<int64_t, int64_t>>& sorted_KV, const string& 
         // Iterate each element and push to vector
         int curPage = floor((i*constants::PAIR_SIZE) / constants::PAGE_SIZE);
         if (curPage != prevPage) {
-            char* tmp;
-            read(file_path.c_str(), fd, tmp, (curPage * constants::PAGE_SIZE), true);
+            // Under long scan, since the page returned from read() is not in buffer pool, no eviction anymore and we need to delte it manually
+            if (isLongScan && !bufferHit) {
+                delete leafNode;
+            }
+            // If the scan is larger than SCAN_RANGE_LIMIT, then do not put ANY following pages into buffer pool (including ones from other SSTs)
+            ++scanRange;
+            if (!isLongScan && scanRange >= constants::SCAN_RANGE_LIMIT) {
+                #ifdef DEBUG
+                    cout << "Long-Range Scan detected. Disabling buffer pool..." << endl;
+                #endif
+                isLongScan = true;
+            }
+
+            char* tmp = nullptr;
+            bufferHit = read(file_path.c_str(), fd, tmp, (curPage * constants::PAGE_SIZE), isLongScan, true);
             leafNode = (BTreeLeafNode*)tmp;
             prevPage = curPage;
         }
@@ -644,7 +686,9 @@ void LSMTree::scan_SST(vector<pair<int64_t, int64_t>>& sorted_KV, const string& 
             break; // until meeting the first value out of range
         }
     }
-
+    if (isLongScan && !bufferHit) {
+        delete leafNode;
+    }
     close(fd);
 }
 
@@ -661,22 +705,27 @@ const string LSMTree::parse_pid(const string& file_path, const int32_t& offset) 
 }
 
 // Read either from bufferpool or SST
-void LSMTree::read(const string& file_path, const int& fd, char*& data, const int64_t& offset, const bool& isLeaf) {
+bool LSMTree::read(const string& file_path, const int& fd, char*& data, const off_t& offset, const bool& isLongScan, const bool& isLeaf) {
     #ifdef ASSERT
         assert(offset >= 0);
     #endif
     const string p_id = parse_pid(file_path, offset);
     char* tmp;
     
-    if (constants::USE_BUFFER_POOL && buffer->get_from_buffer(p_id, tmp)) {}
-    else {
+    if (constants::USE_BUFFER_POOL && buffer->get_from_buffer(p_id, tmp)) {
+        data = tmp;
+        return true;
+    } else {
         tmp = (char*)new BTreeNode();
         int ret = pread(fd, tmp, constants::KEYS_PER_NODE * constants::PAIR_SIZE, offset);
         #ifdef ASSERT
             assert(ret == constants::KEYS_PER_NODE * constants::PAIR_SIZE);
         #endif
-        
-        buffer->insert_to_buffer(p_id, isLeaf, tmp);
+        // If a range query is long, we do not save it to the buffer pool (aka evict immediately)
+        if (!isLongScan) {
+            buffer->insert_to_buffer(p_id, isLeaf, tmp);
+        }
+        data = tmp;
+        return false;
     }
-    data = tmp;
 }
