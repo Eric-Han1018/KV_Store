@@ -47,7 +47,7 @@ void write_csv(std::string filename, std::vector<std::pair<std::string, std::vec
 int main(int argc, char **argv) {
     srand (1);
     int64_t megabyte = 1 << 20;
-    vector<int32_t> inputDataSize = {1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024};
+    vector<int32_t> inputDataSize = {32, 64, 128};
     vector<bool> useBTrees = {true, false};
 
     cerr << "Running benchmarking..." << endl;
@@ -116,16 +116,17 @@ int main(int argc, char **argv) {
             else put_ops_Binary.emplace_back(count);
             cerr << "Done" << endl;
 
+            db.closeDB();
             count = 0;
             for (auto& path: fs::directory_iterator(constants::DATA_FOLDER + "Benchmark")) {
                 fs::remove_all(path);
                 ++count;
             }
             cerr << "Deleted " << count << "SSTs" <<endl;
-            db.closeDB();
+
         }
     }
-    
+
 
     // Wrap into a vector
     std::vector<std::pair<std::string, std::vector<int>>> vals = {{"InputDataSize", inputDataSize}, {"Put_Btree", put_ops_Btree}, {"Get_Btree", get_ops_Btree}, {"Scan_Btree", scan_ops_Btree}, 

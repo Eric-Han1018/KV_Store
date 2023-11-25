@@ -271,7 +271,7 @@ string Database::writeToSST() {
 
     // Write data structure to binary file
     // FIXME: do we need O_DIRECT for now?
-    int fd = open(file_name.c_str(), O_WRONLY | O_CREAT | O_SYNC, 0777);
+    int fd = open(file_name.c_str(), O_WRONLY | O_CREAT | O_SYNC | O_DIRECT, 0777);
     #ifdef ASSERT
         assert(fd!=-1);
     #endif
@@ -297,7 +297,10 @@ string Database::writeToSST() {
         }
     }
 
-    close(fd);
+    int close_res = close(fd);
+    #ifdef ASSERT
+        assert(close_res != -1);
+    #endif
 
     // Add to the maintained directory list
     lsmtree->add_SST(file_name);

@@ -114,7 +114,7 @@ void LSMTree::merge_down_helper(const vector<Level>::iterator& cur_level, const 
     for (int i = 0; i < num_sst; ++i) {
         // FIXME: Seems that we no longer need min and max
         parse_SST_name(cur_level->sorted_dir[i], min_max_keys[i].first, min_max_keys[i].second, leaf_ends[i]);
-        fds[i].first = open(cur_level->sorted_dir[i].c_str(), O_RDONLY | O_SYNC, 0777);
+        fds[i].first = open(cur_level->sorted_dir[i].c_str(), O_RDONLY | O_SYNC | O_DIRECT, 0777);
         #ifdef ASSERT
             assert(fds[i].first != -1);
         #endif
@@ -135,7 +135,7 @@ void LSMTree::merge_down_helper(const vector<Level>::iterator& cur_level, const 
         assert(!fs::exists(output_filename + "temp.bytes"));
     #endif
     string temp_name = output_filename + "temp.bytes";
-    int fd = open(temp_name.c_str(), O_WRONLY | O_CREAT | O_SYNC, 0777);
+    int fd = open(temp_name.c_str(), O_WRONLY | O_CREAT | O_SYNC | O_DIRECT, 0777);
     #ifdef ASSERT
         assert(fd != -1);
     #endif
@@ -480,7 +480,7 @@ const int64_t* LSMTree::search_SST_Binary(int& fd, const fs::path& file_path, co
 const int64_t* LSMTree::search_SST(const fs::path& file_path, const int64_t& key, const size_t& file_end, const size_t& non_leaf_start, const bool& use_btree) {
     const int64_t* result = nullptr;
     // Open the SST file
-    int fd = open(file_path.c_str(), O_RDONLY | O_SYNC, 0777);
+    int fd = open(file_path.c_str(), O_RDONLY | O_SYNC | O_DIRECT, 0777);
 
     #ifdef ASSERT
         assert(fd != -1);
@@ -492,7 +492,10 @@ const int64_t* LSMTree::search_SST(const fs::path& file_path, const int64_t& key
         result = search_SST_Binary(fd, file_path, key, file_end, non_leaf_start);
     }
     
-    close(fd);
+    int close_res = close(fd);
+    #ifdef ASSERT
+        assert(close_res != -1);
+    #endif
 
     return result;
 }
@@ -624,7 +627,7 @@ const int32_t LSMTree::scan_helper_Binary(const int& fd, const fs::path& file_pa
 // The implementation is similar with search_SST()
 void LSMTree::scan_SST(vector<pair<int64_t, int64_t>>& sorted_KV, const string& file_path, const int64_t& key1, const int64_t& key2, const size_t& file_end, const size_t& non_leaf_start, bool& isLongScan, const bool& use_btree) {
     // Open the SST file
-    int fd = open(file_path.c_str(), O_RDONLY | O_SYNC, 0777);
+    int fd = open(file_path.c_str(), O_RDONLY | O_SYNC | O_DIRECT, 0777);
  
     #ifdef ASSERT
         assert(fd != -1);
@@ -689,7 +692,10 @@ void LSMTree::scan_SST(vector<pair<int64_t, int64_t>>& sorted_KV, const string& 
     if (isLongScan && !bufferHit) {
         delete leafNode;
     }
-    close(fd);
+    int close_res = close(fd);
+    #ifdef ASSERT
+        assert(close_res != -1);
+    #endif
 }
 
 // Combine SST file's name with offset to get the page ID
