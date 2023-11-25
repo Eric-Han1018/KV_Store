@@ -19,4 +19,5 @@ namespace constants {
     const bool USE_BUFFER_POOL = true;
     const size_t LSMT_SIZE_RATIO = 2;
     const size_t LSMT_DEPTH = 10;
+    const int SCAN_RANGE_LIMIT = 3;
 }

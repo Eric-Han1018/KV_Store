@@ -286,6 +286,31 @@ void test_bufferpool(){
     db.bufferpool->print();
 }
 
+// FIXME:: This is a draft
+void test_sequential_flooding(string db_name) {
+    Database db(constants::MEMTABLE_SIZE);
+    db.openDB(db_name);
+    cout << "\n--- test case 1: Test scan() from both single SST ---" << endl;
+    for (int64_t i = 0; i < constants::MEMTABLE_SIZE; ++i) {
+        db.put(i, 0);
+    }
+    db.put(0, 1);
+    const vector<pair<int64_t, int64_t>>* values = db.scan(1, 1 + constants::PAGE_SIZE * constants::SCAN_RANGE_LIMIT, true);
+    delete values;
+
+    cout << "\n--- test case 2: Test scan() across multiple SSTs ---" << endl;
+    for (int64_t i = 1; i < constants::MEMTABLE_SIZE; ++i) {
+        db.put(i, 1);
+    }
+    db.put(-1, -1);
+    values = db.scan(1, 1 + constants::PAGE_SIZE * constants::SCAN_RANGE_LIMIT, true);
+    delete values;
+
+    // FIXME:: need Assertion
+    // FIXME:: need 3rd test case
+    db.closeDB();
+}
+
 int main(int argc, char **argv) {
     string db_name = "GaussDB";
     cout << "\n===== Test Put(key, value) =====\n" << endl;
@@ -310,6 +335,9 @@ int main(int argc, char **argv) {
     db_name = "GaussssDD";
     cout << "\n===== Test BufferPool =====\n" << endl;
     test_bufferpool_scan_get_binary(db_name);
+    deleteSSTs(constants::DATA_FOLDER + db_name);
+    cout << "\n===== Test Sequential Flooding =====\n" << endl;
+    test_sequential_flooding(db_name);
     deleteSSTs(constants::DATA_FOLDER + db_name);
     cout << "\nAll Tests Passed!\n" << endl;
     return 0;
