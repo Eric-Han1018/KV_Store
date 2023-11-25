@@ -128,7 +128,7 @@ void LSMTree::merge_down_helper(const vector<Level>::iterator& cur_level, const 
     // Output buffer that stores the KV-pairs
     aligned_KV_vector output_buffer(constants::KEYS_PER_NODE);
     size_t total_count = 0; // Couts the total num of elements inserted so far
-    off_t SST_offset = 0;
+    int64_t SST_offset = 0;
     // Whenever the buffer is full, write to this file
     string output_filename = constants::DATA_FOLDER + db_name + '/';
     #ifdef ASSERT
@@ -218,11 +218,11 @@ void LSMTree::merge_down_helper(const vector<Level>::iterator& cur_level, const 
 
     // Below is in similar logic as in WriteToSST()
     // If it is not the last level, we do not build up the non-leaf nodes
-    off_t leaf_end = total_count*constants::PAIR_SIZE;
+    int64_t leaf_end = total_count*constants::PAIR_SIZE;
 
     if (last_level) {
         // Change ptrs to independent file offsets
-        off_t off = leaf_end;
+        int64_t off = leaf_end;
         for (int32_t i = (int32_t)non_leaf_nodes.size() - 1; i >= 0; --i) {
             vector<BTreeNode>& level = non_leaf_nodes[i];
             int32_t next_size;
@@ -253,7 +253,7 @@ void LSMTree::merge_down_helper(const vector<Level>::iterator& cur_level, const 
         }
 
 
-        off_t offset = leaf_end;
+        int64_t offset = leaf_end;
         // Write non-leaf levels, starting from root
         for (int32_t i = (int32_t)non_leaf_nodes.size() - 1; i >= 0; --i) {
             vector<BTreeNode>& level = non_leaf_nodes[i];
@@ -366,12 +366,12 @@ void LSMTree::parse_SST_name(const string& file_name, int64_t& min_key, int64_t&
 
 // Search in BTree non-leaf nodes to find the offset of the leaf
 const int32_t LSMTree::search_BTree_non_leaf_nodes(const int& fd, const fs::path& file_path, const int64_t& key, const size_t& file_end, const size_t& non_leaf_start) {
-    size_t offset = non_leaf_start;
+    int64_t offset = non_leaf_start;
     BTreeNode* curNode;
     char* tmp;
 
     // Traverse B-Tree non-leaf nodes
-    while (offset >= non_leaf_start) {
+    while (offset >= (int64_t)non_leaf_start) {
         // Read corresponding node
         read(file_path.c_str(), fd, tmp, offset, false, false);
         curNode = (BTreeNode*)tmp;
@@ -398,10 +398,10 @@ const int32_t LSMTree::search_BTree_non_leaf_nodes(const int& fd, const fs::path
             offset = curNode->ptrs[low];
         }
         #ifdef ASSERT
-            if (offset < file_end) {
-                cout << "offset: " << offset << " file_end: " << file_end << endl;
-            }
-            assert(offset < file_end);
+            // if (offset < file_end) {
+            //     cout << "offset: " << offset << " file_end: " << file_end << endl;
+            // }
+            assert(offset < (int64_t)file_end);
         #endif
 
     }
@@ -413,6 +413,7 @@ const int32_t LSMTree::search_BTree_non_leaf_nodes(const int& fd, const fs::path
 const int64_t* LSMTree::search_SST_BTree(int& fd, const fs::path& file_path, const int64_t& key, const size_t& file_end, const size_t& non_leaf_start) {
     // Search BTree non-leaf nodes to find the offset of leaf
     const int32_t offset = search_BTree_non_leaf_nodes(fd, file_path, key, file_end, non_leaf_start);
+    if (offset < 0) return nullptr;
     // Binary search in the leaf node
     BTreeLeafNode* leafNode;
     char* tmp;
@@ -559,6 +560,7 @@ void LSMTree::scan(vector<pair<int64_t, int64_t>>*& sorted_KV, const int64_t& ke
 
 const int32_t LSMTree::scan_helper_BTree(const int& fd, const fs::path& file_path, const int64_t& key1, const size_t& file_end, const size_t& non_leaf_start) {
     int32_t offset = search_BTree_non_leaf_nodes(fd, file_path, key1, file_end, non_leaf_start);
+    if (offset < 0) return -1;
     BTreeLeafNode* leafNode;
     char* tmp;
     read(file_path.c_str(), fd, tmp, offset, false, true);
@@ -633,6 +635,7 @@ void LSMTree::scan_SST(vector<pair<int64_t, int64_t>>& sorted_KV, const string& 
     int32_t start = -1;
     if (use_btree) {
         start = scan_helper_BTree(fd, file_path, key1, file_end, non_leaf_start);
+        if (start == -1) return;
     } else {
         start = scan_helper_Binary(fd, file_path, key1, num_elements, file_end, non_leaf_start);
     }
@@ -703,6 +706,9 @@ const string LSMTree::parse_pid(const string& file_path, const int32_t& offset) 
 
 // Read either from bufferpool or SST
 bool LSMTree::read(const string& file_path, const int& fd, char*& data, const off_t& offset, const bool& isLongScan, const bool& isLeaf) {
+    #ifdef ASSERT
+        assert(offset >= 0);
+    #endif
     const string p_id = parse_pid(file_path, offset);
     char* tmp;
     

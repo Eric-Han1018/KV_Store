@@ -62,10 +62,10 @@ class LSMTree {
             return levels[0].cur_size + 1 < constants::LSMT_SIZE_RATIO;
         }
         void print_lsmt() {
-            for (int i = 0; i < num_levels; ++i) {
+            for (size_t i = 0; i < num_levels; ++i) {
                 cout << "level " << to_string(i) << " cur_size: " << levels[i].cur_size << " max_size: " << levels[i].max_size << endl;
                 if (levels[i].cur_size > 0) {
-                    for (int j = 0; j < levels[i].cur_size; ++j) {
+                    for (size_t j = 0; j < levels[i].cur_size; ++j) {
                         cout << " sorted_dir: " << levels[i].sorted_dir[j].c_str() << endl;
                     }
                 }
