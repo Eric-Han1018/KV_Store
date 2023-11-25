@@ -202,13 +202,15 @@ void LSMTree::merge_down_helper(const vector<Level>::iterator& cur_level, const 
     if (total_count % constants::KEYS_PER_NODE != 0) {
         int padding = constants::KEYS_PER_NODE - (total_count % constants::KEYS_PER_NODE);
         for (int32_t i = 0; i < padding; ++i) {
+            #ifdef ASSERT
             if (output_buffer.size() > 0) { // Pad with the last element in the buffer
+            #endif
                 output_buffer.emplace_back(output_buffer.back());
+            #ifdef ASSERT
             } else {
-                #ifdef ASSERT
-                    assert(false); // If output_buffer is empty, then no need to pad
-                #endif
+                assert(false); // If output_buffer is empty, then no need to pad
             }
+            #endif
         }
         total_count += padding;
         #ifdef ASSERT

@@ -32,7 +32,7 @@ LDLIBS   :=
 
 .PHONY: db test clean
 
-db: CFLAGS += -O3 -Wno-unused-variable
+db: CFLAGS += -O3 -Wno-unused-variable -Wno-unused-but-set-variable
 db: $(OBJ) | $(BIN_DIR)
 	$(CC) $(LDFLAGS) $(filter-out $(OBJ_DIR)/unittest.o, $(OBJ)) $(LDLIBS) -o $(EXE)
 
