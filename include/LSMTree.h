@@ -4,11 +4,24 @@
 #include <filesystem>
 #include <set>
 #include <algorithm>
+#include <queue>
 #include "constants.h"
 #include "bufferpool.h"
 #include "aligned_KV_vector.h"
 using namespace std;
 namespace fs = std::filesystem;
+
+struct HeapNode {
+    pair<int64_t, int64_t> data;
+    int arrayIndex; // this index corresponds the index of sorted_dir, the greater the index, newer the file
+};
+
+// Custom comparator for creating a min-heap with priority for newer file in duplicates
+auto comp = [](const HeapNode &a, const HeapNode &b) {
+    if (a.data.first == b.data.first)
+        return a.arrayIndex < b.arrayIndex; // Prioritize newer file
+    return a.data.first > b.data.first;
+};
 
 class Level {
     public:
@@ -32,13 +45,9 @@ class LSMTree {
         size_t num_levels;
 
         LSMTree(string db_name, size_t depth, Bufferpool* buffer = nullptr) : db_name(db_name), buffer(buffer), num_levels(1) {
-            // Get a sorted list of existing SST files
-            // for (auto& file_path : fs::directory_iterator(constants::DATA_FOLDER + db_name + '/')) {
-            //     sorted_dir.push_back(file_path);
-            // }
-            // sort(sorted_dir.begin(), sorted_dir.end());
             while (depth > 0) {
-                levels.emplace_back(Level(pow(constants::LSMT_SIZE_RATIO, depth), constants::LSMT_DEPTH - depth));
+                int cur_depth = constants::LSMT_DEPTH - depth;
+                levels.emplace_back(Level(pow(constants::LSMT_SIZE_RATIO, cur_depth+1), cur_depth));
                 --depth;
             }
         }
@@ -53,10 +62,12 @@ class LSMTree {
             return levels[0].cur_size + 1 < constants::LSMT_SIZE_RATIO;
         }
         void print_lsmt() {
-            for (int i = 0; i < (int)num_levels; ++i) {
-                cout << "level " << to_string(i) << " size: " << levels[i].cur_size << " level: " << levels[i].level << endl;
+            for (int i = 0; i < num_levels; ++i) {
+                cout << "level " << to_string(i) << " cur_size: " << levels[i].cur_size << " max_size: " << levels[i].max_size << endl;
                 if (levels[i].cur_size > 0) {
-                    cout << " sorted_dir: " << levels[i].sorted_dir[0].c_str() << endl;
+                    for (int j = 0; j < levels[i].cur_size; ++j) {
+                        cout << " sorted_dir: " << levels[i].sorted_dir[j].c_str() << endl;
+                    }
                 }
             }
         }

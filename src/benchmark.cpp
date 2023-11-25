@@ -63,13 +63,14 @@ int main(int argc, char **argv) {
         else cerr << "============== Test Binary Search ==============" << endl;
 
         for (int64_t inputSize : inputDataSize) {
+            string db_name = "Benchmark" + to_string(inputSize);
             cerr << "-------------- Testing Input Size: " << inputSize << "MB..." << endl;
             inputSize *= megabyte;
             inputSize /= constants::PAIR_SIZE;
 
             cerr << "Creating Database with size: " << constants::MEMTABLE_SIZE << " memtable entries...";
             Database db(constants::MEMTABLE_SIZE);
-            db.openDB("Benchmark");
+            db.openDB(db_name);
             cerr << "Done" << endl;
 
             cerr << "Populating " << inputSize << " entries into DB...";
@@ -117,12 +118,12 @@ int main(int argc, char **argv) {
             cerr << "Done" << endl;
 
             count = 0;
-            for (auto& path: fs::directory_iterator(constants::DATA_FOLDER + "Benchmark")) {
+            db.closeDB();
+            for (auto& path: fs::directory_iterator(constants::DATA_FOLDER + db_name)) {
                 fs::remove_all(path);
                 ++count;
             }
             cerr << "Deleted " << count << "SSTs" <<endl;
-            db.closeDB();
         }
     }
     

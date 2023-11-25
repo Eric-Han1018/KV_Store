@@ -19,7 +19,7 @@ const int64_t* LSMTree::get(const int64_t& key, const bool& use_btree) {
     // Iterate to read each file in descending order (new->old)
     for (int i = 0; i < (int)num_levels; ++i) {
         #ifdef ASSERT
-            assert(levels[i].sorted_dir.size() < 2); // FIXME: Temp check
+            assert(levels[i].sorted_dir.size() < levels[i].max_size); // FIXME: Temp check
         #endif
         for (auto file_path_itr = levels[i].sorted_dir.rbegin(); file_path_itr != levels[i].sorted_dir.rend(); ++file_path_itr) {
             #ifdef DEBUG
@@ -55,9 +55,12 @@ void LSMTree::add_SST(const string& file_name) {
     levels[0].cur_size++;
     levels[0].sorted_dir.emplace_back(file_name);
 
-    if (levels[0].cur_size == constants::LSMT_SIZE_RATIO) {
+    if (levels[0].cur_size == levels[0].max_size) {
         merge_down(levels.begin());
     }
+    #ifdef DEBUG
+        print_lsmt();
+    #endif
 }
 
 // Compact the current level on LSMTree to next level
@@ -68,7 +71,7 @@ void LSMTree::merge_down(const vector<Level>::iterator& cur_level) {
     vector<Level>::iterator next_level;
     
     // FIXME: Is this useful?
-    if (cur_level->cur_size < constants::LSMT_SIZE_RATIO) {
+    if (cur_level->cur_size < cur_level->max_size) {
         #ifdef ASSERT
             assert(false);
         #endif
@@ -79,14 +82,14 @@ void LSMTree::merge_down(const vector<Level>::iterator& cur_level) {
     
     // We build up the BTree only after the last compaction
     bool last_level = false;
-    if (next_level->cur_size + 1 < constants::LSMT_SIZE_RATIO) {
+    if (next_level->cur_size + 1 < next_level->max_size) {
         last_level = true;
     }
 
     merge_down_helper(cur_level, next_level, cur_level->cur_size, last_level);
 
     // check the next_level if need to compact, if so recursion
-    if (next_level->cur_size == constants::LSMT_SIZE_RATIO) {
+    if (next_level->cur_size == next_level->max_size) {
         merge_down(next_level);
     }
 }
@@ -98,7 +101,7 @@ void LSMTree::merge_down_helper(const vector<Level>::iterator& cur_level, const 
         cout << "merge_down_helper" << endl;
     #endif
     #ifdef ASSERT
-        assert(cur_level->cur_size == constants::LSMT_SIZE_RATIO);
+        assert(cur_level->cur_size == cur_level->max_size);
     #endif
 
     // FIXME: 这个还有用吗
@@ -121,7 +124,6 @@ void LSMTree::merge_down_helper(const vector<Level>::iterator& cur_level, const 
         #endif
     }
 
-
     // loop over kv pairs, if encounters two same key, only the more recent version is kept
     // Output buffer that stores the KV-pairs
     aligned_KV_vector output_buffer(constants::KEYS_PER_NODE);
@@ -138,10 +140,9 @@ void LSMTree::merge_down_helper(const vector<Level>::iterator& cur_level, const 
         assert(fd != -1);
     #endif
 
+    priority_queue<HeapNode, vector<HeapNode>, decltype(comp)> minHeap(comp); //initializes a priority queue (min-heap) of size 0, that stores HeapNode
     vector<int> pages_read(num_sst, 1);
     vector<int> indices(num_sst, 0);
-    BTreeLeafNode x_leafNode = leafNodes[0]; // FIXME/TODO/NOTE: can we use reference to avoid making a copy? Not sure
-    BTreeLeafNode y_leafNode = leafNodes[1];
 
     // Btree variables
     vector<vector<BTreeNode>> non_leaf_nodes; // Stores all leaf elements
@@ -149,77 +150,49 @@ void LSMTree::merge_down_helper(const vector<Level>::iterator& cur_level, const 
     int32_t current_level = 0;
     pair<int64_t, int64_t> last_kv = {-1, -1}; // This records the last key in the leaf
 
-    // TODO: can be changed to Dostoevsky and min-heap implementation
-    while (fds[0].second > 0 || fds[1].second > 0) {
-        while (indices[0] < constants::KEYS_PER_NODE && indices[1] < constants::KEYS_PER_NODE) {
-            if (x_leafNode.data[indices[0]].first == y_leafNode.data[indices[1]].first) {
-                output_buffer.emplace_back(y_leafNode.data[indices[1]].first, y_leafNode.data[indices[1]].second);
-                ++total_count;
-                // Build the BTree non-leaf node
-                if (last_level && total_count % constants::KEYS_PER_NODE == 0) {
-                    insertHelper(non_leaf_nodes, counters, output_buffer.back().first, current_level);
-                }
-                if (output_buffer.isFull()) {
-                    last_kv = output_buffer.flush_to_file(fd, SST_offset);
-                }
-                ++indices[0];
-                ++indices[1];
-            } else if (x_leafNode.data[indices[0]].first > y_leafNode.data[indices[1]].first) {
-                output_buffer.emplace_back(y_leafNode.data[indices[1]].first, y_leafNode.data[indices[1]].second);
-                ++total_count;
-                // Build the BTree non-leaf node
-                if (last_level && total_count % constants::KEYS_PER_NODE == 0) {
-                    insertHelper(non_leaf_nodes, counters, output_buffer.back().first, current_level);
-                }
-                if (output_buffer.isFull()) {
-                    last_kv = output_buffer.flush_to_file(fd, SST_offset);
-                }
-                ++indices[1];
-            } else {
-                output_buffer.emplace_back(x_leafNode.data[indices[0]].first, x_leafNode.data[indices[0]].second);
-                ++total_count;
-                // Build the BTree non-leaf node
-                if (last_level && total_count % constants::KEYS_PER_NODE == 0) {
-                    insertHelper(non_leaf_nodes, counters, output_buffer.back().first, current_level);
-                }
-                if (output_buffer.isFull()) {
-                    last_kv = output_buffer.flush_to_file(fd, SST_offset);
-                }
-                ++indices[0];
-            }
-            if (indices[0] < constants::KEYS_PER_NODE && x_leafNode.data[indices[0]].first == last_kv.first) { break; }
-            if (indices[1] < constants::KEYS_PER_NODE && y_leafNode.data[indices[1]].first == last_kv.first) { break; }
+    // Initialize the heap with the first element of each SSTs
+    for (int i = 0; i < num_sst; ++i) {
+        if (indices[i] < constants::KEYS_PER_NODE) {
+            minHeap.push({leafNodes[i].data[indices[i]], i});
+            ++indices[i];
         }
-        for (int i = 0; i < num_sst; ++i) {
-            while ((indices[i] * constants::PAIR_SIZE) < fds[i].second) { // add the rest of the elements in the page
-                output_buffer.emplace_back(x_leafNode.data[indices[i]].first, x_leafNode.data[indices[i]].second);
-                ++total_count;
-                // Build the BTree non-leaf node
-                if (last_level && total_count % constants::KEYS_PER_NODE == 0) {
-                    insertHelper(non_leaf_nodes, counters, output_buffer.back().first, current_level);
-                }
-                if (output_buffer.isFull()) {
-                    last_kv = output_buffer.flush_to_file(fd, SST_offset);
-                }
-                if (x_leafNode.data[indices[i]].first == last_kv.first) { // padding detected
-                    indices[i] = fds[i].second;
-                    break;
-                }
-                ++indices[i];
+    }
+
+    while (!minHeap.empty()) {
+        HeapNode node = minHeap.top();
+        minHeap.pop();
+
+        // Add to result if it's the first element or a non-duplicate
+        if (output_buffer.size() == 0 || output_buffer.back().first != node.data.first) {
+            output_buffer.emplace_back(node.data);
+            ++total_count;
+            // Build the BTree non-leaf node
+            if (last_level && total_count % constants::KEYS_PER_NODE == 0) {
+                insertHelper(non_leaf_nodes, counters, output_buffer.back().first, current_level);
             }
+            if (output_buffer.isFull()) {
+                last_kv = output_buffer.flush_to_file(fd, SST_offset);
+            }
+            #ifdef DEBUG
+                cout << "insert: key {" << node.data.first << "," << node.data.second << "} to output buffer" << endl;
+            #endif
         }
-        for (int i = 0; i < num_sst; ++i) {
-            if ((indices[i] * constants::PAIR_SIZE) >= fds[i].second && (pages_read[i] * constants::PAGE_SIZE) < leaf_ends[i]) { // read next page
-                fds[i].second = pread(fds[i].first, (char*)&x_leafNode, constants::PAGE_SIZE, pages_read[i] * constants::PAGE_SIZE);
-                #ifdef ASSERT
-                    assert(fds[i].second == (int)(constants::PAGE_SIZE));
-                #endif
-                ++pages_read[i];
-                indices[i] = 0;
-            } else {
-                // End of leaves
-                fds[i].second = 0;
-            }
+        int index = node.arrayIndex;
+        if (indices[index] < constants::KEYS_PER_NODE) {
+            minHeap.push({leafNodes[index].data[indices[index]], index});
+            ++indices[index];
+        }
+
+        if ((indices[index] * constants::PAIR_SIZE) >= fds[index].second && (pages_read[index] * constants::PAGE_SIZE) < leaf_ends[index]) { // read next page
+            fds[index].second = pread(fds[index].first, (char*)&leafNodes[index], constants::PAGE_SIZE, pages_read[index] * constants::PAGE_SIZE);
+            #ifdef ASSERT
+                assert(fds[index].second == (int)(constants::PAGE_SIZE));
+            #endif
+            ++pages_read[index];
+            indices[index] = 0;
+        } else {
+            // End of leaves
+            fds[index].second = 0;
         }
     }
 
@@ -227,12 +200,15 @@ void LSMTree::merge_down_helper(const vector<Level>::iterator& cur_level, const 
     if (total_count % constants::KEYS_PER_NODE != 0) {
         int padding = constants::KEYS_PER_NODE - (total_count % constants::KEYS_PER_NODE);
         for (int32_t i = 0; i < padding; ++i) {
-            output_buffer.emplace_back(last_kv);
+            if (last_kv.first != -1 && last_kv.second != -1) {
+                output_buffer.emplace_back(last_kv);
+            } else {
+                output_buffer.emplace_back(output_buffer.back());
+            }
         }
         total_count += padding;
         #ifdef ASSERT
             assert(output_buffer.isFull());
-            assert(last_kv.first == output_buffer.back().first);
         #endif
         if (last_level && total_count / constants::KEYS_PER_NODE % (constants::KEYS_PER_NODE + 1) != 0) {
             insertHelper(non_leaf_nodes, counters, output_buffer.back().first, current_level);
@@ -324,9 +300,6 @@ void LSMTree::merge_down_helper(const vector<Level>::iterator& cur_level, const 
     if (next_level->level == num_levels) {
         ++num_levels;
     }
-    #ifdef DEBUG
-        print_lsmt();
-    #endif
 }
 
 // FIXME: Move this and the one in database.cpp to ultil.cpp??
@@ -425,6 +398,9 @@ const int32_t LSMTree::search_BTree_non_leaf_nodes(const int& fd, const fs::path
             offset = curNode->ptrs[low];
         }
         #ifdef ASSERT
+            if (offset < file_end) {
+                cout << "offset: " << offset << " file_end: " << file_end << endl;
+            }
             assert(offset < file_end);
         #endif
 
@@ -621,7 +597,7 @@ const int32_t LSMTree::scan_helper_Binary(const int& fd, const fs::path& file_pa
 void LSMTree::scan_SST(vector<pair<int64_t, int64_t>>& sorted_KV, const string& file_path, const int64_t& key1, const int64_t& key2, const size_t& file_end, const size_t& non_leaf_start, const bool& use_btree) {
     // Open the SST file
     int fd = open(file_path.c_str(), O_RDONLY | O_SYNC | O_DIRECT, 0777);
-
+ 
     #ifdef ASSERT
         assert(fd != -1);
     #endif

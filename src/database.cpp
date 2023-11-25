@@ -30,8 +30,24 @@ void Database::openDB(const string db_name) {
     }
     memtable = new RBTree(memtable_capacity, memtable_root);
     bufferpool = new Bufferpool(constants::BUFFER_POOL_CAPACITY);
-    // TODO:: how to restore all SSTs to LSMTree?
     lsmtree = new LSMTree(db_name, constants::LSMT_DEPTH, bufferpool);
+
+    // Restoring the sorted list of existing SST files when reopen DB
+    vector<fs::path> sorted_dir;
+    int level = 0;
+    for (auto& file_path : fs::directory_iterator(constants::DATA_FOLDER + db_name + '/')) {
+        sorted_dir.push_back(file_path);
+    }
+    sort(sorted_dir.begin(), sorted_dir.end());
+    for (auto file_path_itr = sorted_dir.rbegin(); file_path_itr != sorted_dir.rend(); ++file_path_itr) {
+        if (lsmtree->levels[level].cur_size < lsmtree->levels[level].max_size) {
+            lsmtree->levels[level].sorted_dir.push_back(*file_path_itr);
+            ++lsmtree->levels[level].cur_size;
+        } else {
+            reverse(lsmtree->levels[level].sorted_dir.begin(), lsmtree->levels[level].sorted_dir.end());
+            ++level;
+        }
+    }
 }
 
 void Database::closeDB() {
