@@ -167,13 +167,12 @@ void test_scan(string db_name){
 void test_bufferpool(string db_name){
     Database db(constants::MEMTABLE_SIZE);
     db.openDB(db_name);
-    int keys[constants::MEMTABLE_SIZE];
+    int keys[2 * constants::MEMTABLE_SIZE];
 
-    for (int i = 0; i < constants::MEMTABLE_SIZE; ++i) {
+    for (int i = 0; i < 2 * constants::MEMTABLE_SIZE; ++i) {
         keys[i] = (int64_t)rand();
         db.put(keys[i], 6);
     }
-    db.put(-1, 6);
     int n = 0;
     // Find all existing keys
     for (int key : keys) {
@@ -209,13 +208,12 @@ void test_bufferpool(string db_name){
 void test_bufferpool_scan_get_binary(string db_name){
     Database db(constants::MEMTABLE_SIZE);
     db.openDB(db_name);
-    int keys[constants::MEMTABLE_SIZE];
+    int keys[2 * constants::MEMTABLE_SIZE];
 
-    for (int i = 0; i < constants::MEMTABLE_SIZE; ++i) {
+    for (int i = 0; i < 2 * constants::MEMTABLE_SIZE; ++i) {
         keys[i] = (int64_t)rand();
         db.put(keys[i], 6);
     }
-    db.put(-1, 6);
     // test get with binary searching
     cout << "***********Test Get with Binary***********" << endl;
     int n = 0;
@@ -309,6 +307,7 @@ int main(int argc, char **argv) {
     db_name = "GaussssDB";
     cout << "\n===== Test Scan(Key1, Key2) =====\n" << endl;
     test_scan(db_name);
+    deleteSSTs(constants::DATA_FOLDER + db_name);
     cout << "\nTest Scan(Key1, Key2) passed; Now deleting all SSTs...\n" << endl;
     cout << "\n===== Test BufferPool =====\n" << endl;
     test_bufferpool(db_name);
