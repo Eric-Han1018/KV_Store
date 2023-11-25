@@ -63,7 +63,7 @@ int main(int argc, char **argv) {
         else cerr << "============== Test Binary Search ==============" << endl;
 
         for (int64_t inputSize : inputDataSize) {
-            string db_name = "Benchmark" + to_string(inputSize);
+            string db_name = "Benchmark";
             cerr << "-------------- Testing Input Size: " << inputSize << "MB..." << endl;
             inputSize *= megabyte;
             inputSize /= constants::PAIR_SIZE;

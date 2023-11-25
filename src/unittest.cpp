@@ -183,6 +183,8 @@ void test_bufferpool(string db_name){
         const int64_t* value = db.get(key, true);
         if (value != nullptr){
             cout << "Found: " << key << "->" << *value << endl;
+        } else {
+            assert(false);
         }
         delete value;
         n++;
@@ -194,6 +196,8 @@ void test_bufferpool(string db_name){
         const int64_t* value = db.get(key, true);
         if (value != nullptr){
             cout << "Found: " << key << "->" << *value << endl;
+        } else {
+            assert(false);
         }
         delete value;
         n--;
@@ -223,6 +227,8 @@ void test_bufferpool_scan_get_binary(string db_name){
         if (value != nullptr){
             cout << "Found: " << key << "->" << *value << endl;
             delete value;
+        } else {
+            assert(false);
         }
         n++;
     }
@@ -234,6 +240,8 @@ void test_bufferpool_scan_get_binary(string db_name){
         if (value != nullptr){
             cout << "Found: " << key << "->" << *value << endl;
             delete value;
+        } else {
+            assert(false);
         }
         n--;
     }

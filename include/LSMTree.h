@@ -62,10 +62,10 @@ class LSMTree {
             return levels[0].cur_size + 1 < constants::LSMT_SIZE_RATIO;
         }
         void print_lsmt() {
-            for (int i = 0; i < num_levels; ++i) {
+            for (size_t i = 0; i < num_levels; ++i) {
                 cout << "level " << to_string(i) << " cur_size: " << levels[i].cur_size << " max_size: " << levels[i].max_size << endl;
                 if (levels[i].cur_size > 0) {
-                    for (int j = 0; j < levels[i].cur_size; ++j) {
+                    for (size_t j = 0; j < levels[i].cur_size; ++j) {
                         cout << " sorted_dir: " << levels[i].sorted_dir[j].c_str() << endl;
                     }
                 }
@@ -82,7 +82,7 @@ class LSMTree {
         const int32_t scan_helper_BTree(const int& fd, const fs::path& file_path, const int64_t& key1, const size_t& file_end, const size_t& non_leaf_start);
         const int32_t scan_helper_Binary(const int& fd, const fs::path& file_path, const int64_t& key1, const int32_t& num_elements, const size_t& file_end, const size_t& non_leaf_start);
         const string parse_pid(const string& file_name, const int32_t&);
-        void read(const string& file_path, int fd, char*& data, off_t offset, bool isLeaf);
+        void read(const string& file_path, const int& fd, char*& data, const int64_t& offset, const bool& isLeaf);
 
         // LSMTree functions
         void merge_down(const vector<Level>::iterator& current);
