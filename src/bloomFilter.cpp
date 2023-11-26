@@ -1,6 +1,7 @@
 #include <iostream>
 #include <unistd.h>
 #include <fcntl.h>
+#include <cassert>
 #include "bloomFilter.h"
 #include "util.h"
 using namespace std;
@@ -10,7 +11,7 @@ void BloomFilter::set(const int64_t& key) {
     for (uint32_t i = 0; i < constants::BLOOM_FILTER_NUM_HASHES; ++i) {
         // Using 0,1,2,3... as the seed to represent different hashes
         size_t hash = murmur_hash(key, i) % total_num_bits;
-        bitmap[hash / constants::CACHE_LINE_SIZE].set(hash % constants::CACHE_LINE_SIZE);
+        bitmap[hash >> constants::CACHE_LINE_SIZE_SHIFT].set(hash & ((1<<constants::CACHE_LINE_SIZE_SHIFT) - 1));
     }
 }
 
@@ -18,7 +19,7 @@ void BloomFilter::set(const int64_t& key) {
 inline bool BloomFilter::test(const int64_t& key, const uint32_t& seed) {
     size_t hash = murmur_hash(key, seed) % total_num_bits;
 
-    if (!bitmap[hash / constants::CACHE_LINE_SIZE].test(hash % constants::CACHE_LINE_SIZE)) return false;
+    if (!bitmap[hash >> constants::CACHE_LINE_SIZE_SHIFT].test(hash & ((1<<constants::CACHE_LINE_SIZE_SHIFT) - 1))) return false;
     return true;
 }
 
@@ -30,11 +31,11 @@ void BloomFilter::writeToBloomFilter(const string& filter_path) {
     #endif
     #ifdef ASSERT
         // Check if the bloom filter is a multiple of pages
-        assert((total_num_bits >> 3) % (1<<12) == 0);
+        assert((total_num_bits >> constants::BYTE_BIT_SHIFT) % (1<<constants::PAGE_SIZE_SHIFT) == 0);
     #endif
-    nbytes = pwrite(fd, (char*)bitmap, (total_num_bits >> 3), 0);
+    int nbytes = pwrite(fd, (char*)bitmap, (total_num_bits >> constants::BYTE_BIT_SHIFT), 0);
     #ifdef ASSERT
-        assert(nbytes == (int)(total_num_bits >> 3));
+        assert(nbytes == (int)(total_num_bits >> constants::BYTE_BIT_SHIFT));
     #endif
     int close_res = close(fd);
     #ifdef ASSERT

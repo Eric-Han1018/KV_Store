@@ -18,7 +18,8 @@ void Database::openDB(const string db_name) {
     this->db_name = db_name;
     fs::path directoryPath = constants::DATA_FOLDER + db_name;
 
-    if (fs::exists(directoryPath) && fs::is_directory(directoryPath)) {
+    if (fs::exists(directoryPath / "sst") && fs::exists(directoryPath / "filter")
+        && fs::is_directory(directoryPath / "sst") && fs::is_directory(directoryPath / "filter")) {
         #ifdef DEBUG
             std::cout << "Directory exists." << db_name << std::endl;
         #endif
@@ -26,7 +27,8 @@ void Database::openDB(const string db_name) {
         #ifdef DEBUG
             std::cout << "Directory does not exist." << db_name <<  std::endl;
         #endif
-        fs::create_directory(directoryPath);
+        fs::create_directories(directoryPath / "sst");
+        fs::create_directory(directoryPath / "filter");
     }
     memtable = new RBTree(memtable_capacity, memtable_root);
     bufferpool = new Bufferpool(constants::BUFFER_POOL_CAPACITY);
@@ -35,8 +37,8 @@ void Database::openDB(const string db_name) {
     // Restoring the sorted list of existing SST files when reopen DB
     vector<fs::path> sorted_dir;
     int level = 0;
-    for (auto& file_path : fs::directory_iterator(constants::DATA_FOLDER + db_name + '/')) {
-        sorted_dir.push_back(file_path);
+    for (auto& file_path : fs::directory_iterator(lsmtree->sst_path)) {
+        sorted_dir.push_back(file_path.path().filename());
     }
     sort(sorted_dir.begin(), sorted_dir.end());
     for (auto file_path_itr = sorted_dir.rbegin(); file_path_itr != sorted_dir.rend(); ++file_path_itr) {
@@ -165,11 +167,11 @@ void print_B_Tree(vector<vector<BTreeNode>>& non_leaf_nodes, aligned_KV_vector& 
  * SST structure: |....sorted_KV (as leaf)....|root|..next level..|...next level...|
  * Return: offset to leaf level
  */
-int32_t Database::convertToSST(vector<vector<BTreeNode>>& non_leaf_nodes, aligned_KV_vector& sorted_KV) {
+int32_t Database::convertToSST(vector<vector<BTreeNode>>& non_leaf_nodes, aligned_KV_vector& sorted_KV, BloomFilter& bloom_filter) {
     // This counts the number of elements in each level
     vector<int32_t> counters;
 
-    int32_t padding;
+    int32_t padding = 0;
     int32_t current_level = 0;
 
     // To make things easier, we pad repeated last element to form a complete leaf node
@@ -181,7 +183,7 @@ int32_t Database::convertToSST(vector<vector<BTreeNode>>& non_leaf_nodes, aligne
     }
 
     // To further simplify, we also send the last element of the last leaf node to its parent
-    int32_t bound;
+    int32_t bound = 0;
     if ((int32_t)sorted_KV.size() / constants::KEYS_PER_NODE % (constants::KEYS_PER_NODE + 1) == 0)
         // Except this case, where we do not need to worry
         bound = (int32_t)sorted_KV.size() - 1;
@@ -189,7 +191,16 @@ int32_t Database::convertToSST(vector<vector<BTreeNode>>& non_leaf_nodes, aligne
         bound = (int32_t)sorted_KV.size();
 
     // Iterate each leaf element to find all non-leaf elements
-    for (int32_t count = 0; count < bound; ++count) {
+    for (int32_t count = 0; count < bound - padding; ++count) {
+        // Insert bits in Bloom Filter
+        bloom_filter.set(sorted_KV.data[count].first);
+        // These are all elements in non-leaf nodes
+        if (count % constants::KEYS_PER_NODE == constants::KEYS_PER_NODE - 1) {
+            insertHelper(non_leaf_nodes, counters, sorted_KV.data[count].first, current_level);
+        }
+    }
+    // Iterating padded elements
+    for (int32_t count = bound - padding; count < bound; ++count) {
         // These are all elements in non-leaf nodes
         if (count % constants::KEYS_PER_NODE == constants::KEYS_PER_NODE - 1) {
             insertHelper(non_leaf_nodes, counters, sorted_KV.data[count].first, current_level);
@@ -242,6 +253,7 @@ string Database::writeToSST() {
     // Content in std::vector is stored contiguously
     aligned_KV_vector sorted_KV(constants::MEMTABLE_SIZE); // Stores all non-leaf elements
     vector<vector<BTreeNode>> non_leaf_nodes; // Stores all leaf elements
+    BloomFilter bloom_filter(constants::MEMTABLE_SIZE); // Stores the Bloom Filter
     scan_memtable(sorted_KV, memtable->root);
 
     int32_t leaf_ends;
@@ -249,7 +261,7 @@ string Database::writeToSST() {
     
     // We only build up the BTree if we do not need any compaction
     if (ifCompact) {
-        leaf_ends = convertToSST(non_leaf_nodes, sorted_KV);
+        leaf_ends = convertToSST(non_leaf_nodes, sorted_KV, bloom_filter);
     } else {
         leaf_ends = sorted_KV.size() * constants::PAIR_SIZE;
         // We pad repeated last element to make it 4kb aligned
@@ -261,17 +273,20 @@ string Database::writeToSST() {
         }
     }
 
-
     // Create file name based on current time
     // TODO: modify file name to a smarter way
-    string file_name = constants::DATA_FOLDER + db_name + '/';
+    string SST_path = lsmtree->sst_path;
+    string filter_path = lsmtree->filter_path;
+
     time_t current_time = time(0);
     clock_t current_clock = clock(); // In case there is a tie in time()
-    file_name.append(to_string(current_time)).append(to_string(current_clock)).append("_").append(to_string(-1)).append("_").append(to_string(-1)).append("_").append(to_string(leaf_ends)).append(".bytes");
+    string file_name = to_string(current_time).append(to_string(current_clock)).append("_").append(to_string(-1)).append("_").append(to_string(-1)).append("_").append(to_string(leaf_ends)).append(".bytes");
+    SST_path.append(file_name);
+    filter_path.append(file_name);
 
     // Write data structure to binary file
     // FIXME: do we need O_DIRECT for now?
-    int fd = open(file_name.c_str(), O_WRONLY | O_CREAT | O_SYNC | O_DIRECT, 0777);
+    int fd = open(SST_path.c_str(), O_WRONLY | O_CREAT | O_SYNC | O_DIRECT, 0777);
     #ifdef ASSERT
         assert(fd!=-1);
     #endif
@@ -302,13 +317,18 @@ string Database::writeToSST() {
         assert(close_res != -1);
     #endif
 
+    if (ifCompact) {
+        // Write Bloom Filter to storage
+        bloom_filter.writeToBloomFilter(filter_path);
+    }
+
     // Add to the maintained directory list
     lsmtree->add_SST(file_name);
 
     // Clear the memtable
     clear_tree();
 
-    return file_name;
+    return SST_path;
 }
 
 // Helper function to recursively perform inorder scan

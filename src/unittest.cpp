@@ -9,7 +9,7 @@
 using namespace std;
 namespace fs = std::filesystem;
 
-// Delete all SSTs in data/ folder
+// Delete all SSTs & Bloom Filters in data/ folder
 void deleteSSTs(const fs::path& dir_path) {
     for (auto& file : fs::directory_iterator(dir_path)) {
         fs::remove_all(file);
@@ -287,30 +287,33 @@ int main(int argc, char **argv) {
     string db_name = "GaussDB";
     cout << "\n===== Test Put(key, value) =====\n" << endl;
     test_put(db_name);
-    cout << "\nTest Put(Key, Value) passed; Now deleting all SSTs...\n" << endl;
+    cout << "\nTest Put(Key, Value) passed; Now deleting all SSTs & Bloom Filters...\n" << endl;
     deleteSSTs(constants::DATA_FOLDER + db_name);
     cout << "\n===== Test Get(key) =====\n" << endl;
     test_get(db_name);
-    cout << "\nTest Get(key) passed; Now deleting all SSTs...\n" << endl;
+    cout << "\nTest Get(key) passed; Now deleting all SSTs & Bloom Filters...\n" << endl;
     deleteSSTs(constants::DATA_FOLDER + db_name);
 
     // test with different DB:
     db_name = "GaussssDB";
     cout << "\n===== Test Scan(Key1, Key2) =====\n" << endl;
     test_scan(db_name);
+    cout << "\nTest Scan(Key1, Key2) passed; Now deleting all SSTs & Bloom Filters...\n" << endl;
     deleteSSTs(constants::DATA_FOLDER + db_name);
-    cout << "\nTest Scan(Key1, Key2) passed; Now deleting all SSTs...\n" << endl;
     cout << "\n===== Test BufferPool =====\n" << endl;
     test_bufferpool(db_name);
+    cout << "\nTest BufferPool passed; Now deleting all SSTs & Bloom Filters...\n" << endl;
     deleteSSTs(constants::DATA_FOLDER + db_name);
 
     // test with different DB:
     db_name = "GaussssDD";
     cout << "\n===== Test BufferPool =====\n" << endl;
     test_bufferpool_scan_get_binary(db_name);
+    cout << "\nTest BufferPool passed; Now deleting all SSTs & Bloom Filters...\n" << endl;
     deleteSSTs(constants::DATA_FOLDER + db_name);
     cout << "\n===== Test Sequential Flooding =====\n" << endl;
     test_sequential_flooding(db_name);
+    cout << "\nTest Sequential Flooding passed; Now deleting all SSTs & Bloom Filters...\n" << endl;
     deleteSSTs(constants::DATA_FOLDER + db_name);
     cout << "\nAll Tests Passed!\n" << endl;
     return 0;

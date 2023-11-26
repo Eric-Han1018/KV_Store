@@ -118,11 +118,17 @@ int main(int argc, char **argv) {
 
             db.closeDB();
             count = 0;
-            for (auto& path: fs::directory_iterator(constants::DATA_FOLDER + "Benchmark")) {
+            for (auto& path: fs::directory_iterator(constants::DATA_FOLDER + "Benchmark/sst")) {
                 fs::remove_all(path);
                 ++count;
             }
             cerr << "Deleted " << count << "SSTs" <<endl;
+            count = 0;
+            for (auto& path: fs::directory_iterator(constants::DATA_FOLDER + "Benchmark/filter")) {
+                fs::remove_all(path);
+                ++count;
+            }
+            cerr << "Deleted " << count << "Bloom Filters" <<endl;
 
         }
     }

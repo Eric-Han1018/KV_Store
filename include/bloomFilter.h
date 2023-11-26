@@ -19,12 +19,12 @@ class BloomFilter {
 
         // size: num of kv entries
         BloomFilter(size_t size) {
-            bitmap = new bitset<constants::CACHE_LINE_SIZE>[size * constants::BLOOM_FILTER_NUM_BITS / constants::CACHE_LINE_SIZE];
+            bitmap = new(align_val_t(constants::PAGE_SIZE)) bitset<constants::CACHE_LINE_SIZE>[size * constants::BLOOM_FILTER_NUM_BITS / constants::CACHE_LINE_SIZE];
             total_num_bits = size * constants::BLOOM_FILTER_NUM_BITS;
         } 
 
         ~BloomFilter() {
-            delete[] bitmap;
+            ::operator delete[] (bitmap, align_val_t(constants::PAGE_SIZE));
             total_num_bits = 0;
         }
 
