@@ -8,6 +8,8 @@
 #include "constants.h"
 #include "bufferpool.h"
 #include "aligned_KV_vector.h"
+#include "bloomFilter.h"
+#include "util.h"
 using namespace std;
 namespace fs = std::filesystem;
 
@@ -17,7 +19,7 @@ struct HeapNode {
 };
 
 // Custom comparator for creating a min-heap with priority for newer file in duplicates
-auto comp = [](const HeapNode &a, const HeapNode &b) {
+static auto comp = [](const HeapNode &a, const HeapNode &b) {
     if (a.data.first == b.data.first)
         return a.arrayIndex < b.arrayIndex; // Prioritize newer file
     return a.data.first > b.data.first;
@@ -28,9 +30,12 @@ class Level {
         size_t cur_size;
         size_t max_size;    // TODO: will be useful if implement Dostoevsky
         size_t level;
+        bool last_level;    // TODO: This is used in Dostoevsky to show if it is the last level
         vector<fs::path> sorted_dir;
 
-        Level(size_t max_size, size_t level) : cur_size(0), max_size(max_size), level(level) {};
+        Level(size_t max_size, size_t level) : cur_size(0), max_size(max_size), level(level) {
+            last_level = false; //TODO: remember to modify it when implementing Dostoevsky!!
+        };
 
         ~Level() {};
 
@@ -43,6 +48,8 @@ class LSMTree {
         Bufferpool* buffer;
         vector<Level> levels;
         size_t num_levels;
+        fs::path sst_path;
+        fs::path filter_path;
 
         LSMTree(string db_name, size_t depth, Bufferpool* buffer = nullptr) : db_name(db_name), buffer(buffer), num_levels(1) {
             while (depth > 0) {
@@ -50,6 +57,8 @@ class LSMTree {
                 levels.emplace_back(Level(pow(constants::LSMT_SIZE_RATIO, cur_depth+1), cur_depth));
                 --depth;
             }
+            sst_path = constants::DATA_FOLDER + db_name + "/sst/";
+            filter_path = constants::DATA_FOLDER + db_name + "/filter/";
         }
 
         const int64_t* get(const int64_t& key, const bool& use_btree);
@@ -88,4 +97,8 @@ class LSMTree {
         void merge_down(const vector<Level>::iterator& current);
         void merge_down_helper(const vector<Level>::iterator& cur_level, const vector<Level>::iterator& next_level, const int& num_sst, const bool& last_level);
         void insertHelper(vector<vector<BTreeNode>>& non_leaf_nodes, vector<int32_t>& counters, const int64_t& key, int32_t current_level);
+
+        size_t calculate_sst_size(Level& cur_level);
+        // BloomFilter functions
+        bool check_bloomFilter(const fs::path& filter_path, const int64_t& key, Level& cur_level);
 };

@@ -8,7 +8,6 @@
 #include "constants.h"
 #include "MurmurHash3.h"
 #include <cmath>
-#include "LSMTree.h"
 
 using namespace std;
 namespace fs = std::filesystem;
@@ -65,6 +64,5 @@ class Bufferpool {
         void print();
 
     private:
-        size_t murmur_hash(const string& key);
         void evict_clock(int num_pages);
 };

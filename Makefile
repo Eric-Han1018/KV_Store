@@ -36,7 +36,7 @@ db: CFLAGS += -O3 -Wno-unused-variable -Wno-unused-but-set-variable
 db: $(OBJ) | $(BIN_DIR)
 	$(CC) $(LDFLAGS) $(filter-out $(OBJ_DIR)/unittest.o, $(OBJ)) $(LDLIBS) -o $(EXE)
 
-test: CFLAGS += -g -DDEBUG -DASSERT -DSLOW_ASSERT
+test: CFLAGS += -g -DASSERT -DDEBUG -DSLOW_ASSERT
 test: $(OBJ) | $(BIN_DIR)
 	$(CC) $(LDFLAGS) $(filter-out $(OBJ_DIR)/benchmark.o, $(OBJ)) $(LDLIBS) -o $(TST)
 

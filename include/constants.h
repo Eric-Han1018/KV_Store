@@ -21,4 +21,10 @@ namespace constants {
     const size_t LSMT_DEPTH = 10;
     const int SCAN_RANGE_LIMIT = 3;
     const int64_t TOMBSTONE = std::numeric_limits<int64_t>::min();
+    const uint32_t CACHE_LINE_SIZE = 256 * 8; // bits
+    const uint32_t BLOOM_FILTER_NUM_BITS = 5;
+    const uint32_t BLOOM_FILTER_NUM_HASHES = 0.7 * BLOOM_FILTER_NUM_BITS; // ln2 ~= 0.7
+    const uint32_t PAGE_SIZE_SHIFT = 12; // >>12
+    const uint32_t CACHE_LINE_SIZE_SHIFT = 11; // >>11
+    const uint32_t BYTE_BIT_SHIFT = 3;
 }
