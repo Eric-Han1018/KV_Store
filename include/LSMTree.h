@@ -19,7 +19,7 @@ struct HeapNode {
 };
 
 // Custom comparator for creating a min-heap with priority for newer file in duplicates
-auto comp = [](const HeapNode &a, const HeapNode &b) {
+static auto comp = [](const HeapNode &a, const HeapNode &b) {
     if (a.data.first == b.data.first)
         return a.arrayIndex < b.arrayIndex; // Prioritize newer file
     return a.data.first > b.data.first;
