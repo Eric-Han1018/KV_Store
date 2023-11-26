@@ -283,6 +283,42 @@ void test_sequential_flooding(string db_name) {
     db.closeDB();
 }
 
+void test_delete(string db_name)
+{   
+    Database db(2); // Example with memtable_size 2
+    db.openDB(db_name);
+
+    cout << "--- test case 1: Test del() from memtable ---" << endl;
+    // random insert
+    db.put(1, 10);
+    db.put(1, 30); // This is an update on memtable
+    db.put(5, 50);
+    int64_t key = 1;
+    db.del(key);
+    const int64_t* value = db.get(key, true);
+    if (value != nullptr) {
+        cout << "---NOT DELETE---" << endl;
+        assert(false);
+    } else {
+        cout << "---DELETE---" << endl;
+    }
+    delete value;
+
+    cout << "\n--- test case 2: Test del() from SST ---" << endl;
+    db.put(2, 80);
+    db.put(4, 80);
+    const int64_t* value2 = db.get(key, true);
+    if (value2 != nullptr) {
+        cout << "NOT DELETE " << endl;
+        assert(false);
+    } else {
+        cout << "---DELETE---" << endl;
+    }
+    delete value2;
+
+    db.closeDB();
+}
+
 int main(int argc, char **argv) {
     string db_name = "GaussDB";
     cout << "\n===== Test Put(key, value) =====\n" << endl;
@@ -292,6 +328,9 @@ int main(int argc, char **argv) {
     cout << "\n===== Test Get(key) =====\n" << endl;
     test_get(db_name);
     cout << "\nTest Get(key) passed; Now deleting all SSTs...\n" << endl;
+    deleteSSTs(constants::DATA_FOLDER + db_name);
+    cout << "\n===== Test Delete(key) =====\n" << endl;
+    test_delete(db_name);
     deleteSSTs(constants::DATA_FOLDER + db_name);
 
     // test with different DB:

@@ -81,6 +81,10 @@ const int64_t* Database::get(const int64_t& key, const bool use_btree){
     if(memtable->get(result, key) == notInMemtable) {
         return lsmtree->get(key, use_btree);
     }
+    if(*result == constants::TOMBSTONE){
+        std::cout << "Has been deleted" << std::endl;
+        return nullptr;
+    }
     return result;
 }
 
@@ -159,6 +163,10 @@ void print_B_Tree(vector<vector<BTreeNode>>& non_leaf_nodes, aligned_KV_vector& 
         if ((i+1) % constants::KEYS_PER_NODE == 0) cout << "     ";
     }
     cout << endl;
+}
+
+void Database::del(const int64_t& key){
+    put(key, constants::TOMBSTONE);
 }
 
 /* Write the levles in the B-Tree to a SST file
