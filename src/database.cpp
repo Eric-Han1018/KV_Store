@@ -101,8 +101,18 @@ const vector<pair<int64_t, int64_t>>* Database::scan(const int64_t& key1, const 
 
     // Scan each SST
     lsmtree->scan(sorted_KV, key1, key2, use_btree);
-
+    removeTombstones(sorted_KV, constants::TOMBSTONE);
     return sorted_KV;
+}
+
+void Database::removeTombstones(std::vector<std::pair<int64_t, int64_t>>*& sorted_KV, int64_t tombstone) {
+    if (sorted_KV) { // Check if the pointer is not null
+        auto newEnd = std::remove_if(sorted_KV->begin(), sorted_KV->end(),
+                                    [tombstone](const std::pair<int64_t, int64_t>& kv) {
+                                        return kv.second == tombstone;
+                                    });
+        sorted_KV->erase(newEnd, sorted_KV->end());
+    }
 }
 
 /* Insert non-leaf elements into their node in the corresponding level

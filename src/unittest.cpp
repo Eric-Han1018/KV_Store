@@ -315,7 +315,45 @@ void test_delete(string db_name)
         cout << "---DELETE---" << endl;
     }
     delete value2;
+    db.closeDB();
+}
 
+void test_delete_scan(string db_name){
+    Database db(6);
+    db.openDB(db_name);
+
+    cout << "--- test case 1: Test del() with scan from memtable ---" << endl;
+    // random insert
+    db.put(1, 10);
+    db.put(5, 50);
+    db.put(2, 20);
+    db.put(4, 40);
+    db.put(3, 30);
+    db.put(3, 60); // This is an update on memtable
+    db.del(2);
+    int64_t key1 = 2;
+    int64_t key2 = 4;
+    const vector<pair<int64_t, int64_t>>* values = db.scan(key1, key2, true);
+    vector<pair<int64_t, int64_t>> ans = {{3, 60}, {4, 40}};
+    for (const auto& pair : *values) {
+        cout << "Found {Key: " << pair.first << ", Value: " << pair.second << "}" << endl;
+    }
+    assert(is_sorted(values->begin(), values->end()));
+    assert(equal(values->begin(), values->end(), ans.begin()));
+    delete values;
+
+    cout << "\n--- test case 2: Test del() with scan from SST ---" << endl;
+    db.put(4, 50);
+    db.put(11, -10);
+    db.put(9, -10);
+    values = db.scan(key1, key2, true);
+    for (const auto& pair : *values) {
+        cout << "Found {Key: " << pair.first << ", Value: " << pair.second << "}" << endl;
+    }
+    assert(is_sorted(values->begin(), values->end()));
+    ans = {{3, 60}, {4, 50}};
+    assert(equal(values->begin(), values->end(), ans.begin()));
+    delete values;
     db.closeDB();
 }
 
@@ -331,6 +369,9 @@ int main(int argc, char **argv) {
     deleteSSTs(constants::DATA_FOLDER + db_name);
     cout << "\n===== Test Delete(key) =====\n" << endl;
     test_delete(db_name);
+    deleteSSTs(constants::DATA_FOLDER + db_name);
+    cout << "\n===== Test Delete(key) with scan =====\n" << endl;
+    test_delete_scan(db_name);
     deleteSSTs(constants::DATA_FOLDER + db_name);
 
     // test with different DB:

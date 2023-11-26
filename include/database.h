@@ -39,6 +39,7 @@ class Database {
         void del(const int64_t& key);
 
     private:
+        void removeTombstones(std::vector<std::pair<int64_t, int64_t>>*& sorted_KV, int64_t tombstone);
         string writeToSST();
         void scan_memtable(aligned_KV_vector& sorted_KV, Node* root);
         void clear_tree();
