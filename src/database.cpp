@@ -83,6 +83,12 @@ const int64_t* Database::get(const int64_t& key, const bool use_btree){
     if(memtable->get(result, key) == notInMemtable) {
         return lsmtree->get(key, use_btree);
     }
+    if(*result == constants::TOMBSTONE){
+        #ifdef DEBUG
+            std::cout << "Has been deleted" << std::endl;
+        #endif
+        return nullptr;
+    }
     return result;
 }
 
@@ -99,8 +105,18 @@ const vector<pair<int64_t, int64_t>>* Database::scan(const int64_t& key1, const 
 
     // Scan each SST
     lsmtree->scan(sorted_KV, key1, key2, use_btree);
-
+    removeTombstones(sorted_KV, constants::TOMBSTONE);
     return sorted_KV;
+}
+
+void Database::removeTombstones(std::vector<std::pair<int64_t, int64_t>>*& sorted_KV, int64_t tombstone) {
+    if (sorted_KV) { // Check if the pointer is not null
+        auto newEnd = std::remove_if(sorted_KV->begin(), sorted_KV->end(),
+                                    [tombstone](const std::pair<int64_t, int64_t>& kv) {
+                                        return kv.second == tombstone;
+                                    });
+        sorted_KV->erase(newEnd, sorted_KV->end());
+    }
 }
 
 /* Insert non-leaf elements into their node in the corresponding level
@@ -161,6 +177,10 @@ void print_B_Tree(vector<vector<BTreeNode>>& non_leaf_nodes, aligned_KV_vector& 
         if ((i+1) % constants::KEYS_PER_NODE == 0) cout << "     ";
     }
     cout << endl;
+}
+
+void Database::del(const int64_t& key){
+    put(key, constants::TOMBSTONE);
 }
 
 /* Write the levles in the B-Tree to a SST file
