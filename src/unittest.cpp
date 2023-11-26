@@ -309,7 +309,7 @@ void test_delete(string db_name)
     db.put(4, 80);
     const int64_t* value2 = db.get(key, true);
     if (value2 != nullptr) {
-        cout << "NOT DELETE " << endl;
+        cout << "---NOT DELETE---" << endl;
         assert(false);
     } else {
         cout << "---DELETE---" << endl;

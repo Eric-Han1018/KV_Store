@@ -17,7 +17,7 @@ namespace constants {
     const int MEMTABLE_SIZE = (1 << 20) / PAIR_SIZE; //1mb memtable
     const int BUFFER_POOL_CAPACITY = floor((MEMTABLE_SIZE * 0.1) / KEYS_PER_NODE); //10% of data, 100kb
     const bool USE_BUFFER_POOL = true;
-    const size_t LSMT_SIZE_RATIO = 2;
+    const size_t LSMT_SIZE_RATIO = 4;   // TODO: Experiment with different size ratio later
     const size_t LSMT_DEPTH = 10;
     const int SCAN_RANGE_LIMIT = 3;
     const int64_t TOMBSTONE = std::numeric_limits<int64_t>::min();
