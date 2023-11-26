@@ -26,4 +26,5 @@ namespace constants {
     const uint32_t PAGE_SIZE_SHIFT = 12; // >>12
     const uint32_t CACHE_LINE_SIZE_SHIFT = 11; // >>11
     const uint32_t BYTE_BIT_SHIFT = 3;
+    const uint32_t PAGE_CACHELINE_SHIFT = 4; // 1 page = 4kB = 2^12 Bytes, 1 CL = 256 Bytes = 2^8 Bytes, 1 page = 2^4 CL 
 }

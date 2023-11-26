@@ -8,19 +8,14 @@ using namespace std;
 
 // Set the corresponding bits after inserted an entry
 void BloomFilter::set(const int64_t& key) {
-    for (uint32_t i = 0; i < constants::BLOOM_FILTER_NUM_HASHES; ++i) {
-        // Using 0,1,2,3... as the seed to represent different hashes
-        size_t hash = murmur_hash(key, i) % total_num_bits;
-        bitmap[hash >> constants::CACHE_LINE_SIZE_SHIFT].set(hash & ((1<<constants::CACHE_LINE_SIZE_SHIFT) - 1));
+    // We use seed=0 to get the index of cache line
+    size_t cache_line_hash = murmur_hash(key, 0) % total_num_cache_lines;
+    for (uint32_t i = 1; i <= constants::BLOOM_FILTER_NUM_HASHES; ++i) {
+        // Using 1,2,3... as the seed to represent different hashes
+        // On the cacheline, calculate the corresponding bits
+        size_t hash = murmur_hash(key, i) & ((1<<constants::CACHE_LINE_SIZE_SHIFT) - 1); // equivalent to "% constants::CACHE_LINE_SIZE"
+        bitmap[cache_line_hash].set(hash);
     }
-}
-
-// Test if the filter returns positive for the entry
-inline bool BloomFilter::test(const int64_t& key, const uint32_t& seed) {
-    size_t hash = murmur_hash(key, seed) % total_num_bits;
-
-    if (!bitmap[hash >> constants::CACHE_LINE_SIZE_SHIFT].test(hash & ((1<<constants::CACHE_LINE_SIZE_SHIFT) - 1))) return false;
-    return true;
 }
 
 // Write the filter to storage
