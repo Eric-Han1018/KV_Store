@@ -57,7 +57,6 @@ void LSMTree::add_SST(const string& file_name) {
     #ifdef DEBUG
         cout << "add_SST" << endl;
     #endif
-    levels[0].cur_size++;
     levels[0].sorted_dir.emplace_back(file_name);
 
     // At this point, the largest level is the first level and we compact it into one-large SST when the size is less than or equal to SIZE_RATIO
@@ -776,11 +775,6 @@ bool LSMTree::read(const string& file_path, const int& fd, char*& data, const of
     } else {
         tmp = (char*)new BTreeNode();
         int ret = pread(fd, tmp, constants::KEYS_PER_NODE * constants::PAIR_SIZE, offset);
-        // IMPORTANT-FIXME: bug detected when ret == 0, end of file during check_bloomFilter()
-        if (ret == 0) {
-            data = nullptr;
-            return false;
-        }
         #ifdef ASSERT
             assert(ret == constants::KEYS_PER_NODE * constants::PAIR_SIZE);
         #endif
@@ -798,7 +792,7 @@ size_t LSMTree::calculate_sst_size(Level& cur_level) {
     size_t total_num_entries = constants::MEMTABLE_SIZE; // num entries in memtable
     total_num_entries *= pow(constants::LSMT_SIZE_RATIO, cur_level.level); // num entries in each SST on cur_level
     if (cur_level.last_level) {
-        total_num_entries *= constants::LSMT_SIZE_RATIO; // For Dostoevsky, if it is at the last level, they will be a big contiguous run
+        total_num_entries *= cur_level.cur_size; // For Dostoevsky, if it is at the last level, they will be a big contiguous run
     }
     return total_num_entries;
 }
@@ -814,12 +808,6 @@ bool LSMTree::check_bloomFilter(const fs::path& filter_path, const int64_t& key,
 
         char* tmp = nullptr;
         read(filter_path, fd, tmp, page * constants::PAGE_SIZE, false, false);
-
-        // IMPORTANT-FIXME: read end of file?
-        if (tmp == nullptr) {
-            close(fd);
-            return true;
-        }
 
         // One-page-large bitmap
         bitset<1<<(constants::BYTE_BIT_SHIFT + constants::PAGE_SIZE_SHIFT)>* bs = (bitset<1<<(constants::BYTE_BIT_SHIFT + constants::PAGE_SIZE_SHIFT)>*)tmp;

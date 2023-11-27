@@ -91,6 +91,7 @@ class LSMTree {
         }
 
         void parse_SST_level(const string& file_name, size_t& level);
+        size_t calculate_sst_size(Level& cur_level);
 
     private:
         const int64_t* search_SST(const fs::path& file_path, const int64_t& key, const size_t& file_end, const size_t& non_leaf_start, const bool& use_btree);
@@ -111,7 +112,6 @@ class LSMTree {
         void largest_level_move_down(const vector<Level>::iterator& cur_level);
         void insertHelper(vector<vector<BTreeNode>>& non_leaf_nodes, vector<int32_t>& counters, const int64_t& key, int32_t current_level);
 
-        size_t calculate_sst_size(Level& cur_level);
         // BloomFilter functions
         bool check_bloomFilter(const fs::path& filter_path, const int64_t& key, Level& cur_level);
 };

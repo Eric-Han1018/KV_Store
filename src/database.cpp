@@ -281,12 +281,16 @@ string Database::writeToSST() {
     // Content in std::vector is stored contiguously
     aligned_KV_vector sorted_KV(constants::MEMTABLE_SIZE); // Stores all non-leaf elements
     vector<vector<BTreeNode>> non_leaf_nodes; // Stores all leaf elements
-    BloomFilter bloom_filter(constants::MEMTABLE_SIZE); // Stores the Bloom Filter
+    int32_t leaf_ends; // Stores the file offset of the end of leaf nodes
     scan_memtable(sorted_KV, memtable->root);
-
-    int32_t leaf_ends;
-    bool ifCompact = lsmtree->check_LSMTree_compaction(); // Check if we need to perform compaction in LSMTree
     
+    // Check if we need to perform compaction in LSMTree
+    bool ifCompact = lsmtree->check_LSMTree_compaction();
+
+    // Create a Bloom Filter for the SST
+    ++lsmtree->levels[0].cur_size; // We need to increment cur_size here because the Bloom Filter needs it
+    BloomFilter bloom_filter(lsmtree->calculate_sst_size(lsmtree->levels[0]));
+
     // We only build up the BTree if we do not need any compaction
     if (ifCompact) {
         leaf_ends = convertToSST(non_leaf_nodes, sorted_KV, bloom_filter);
