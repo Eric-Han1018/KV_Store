@@ -239,6 +239,8 @@ void LSMTree::merge_down_helper(const vector<Level>::iterator& cur_level, const 
             ++indices[index];
         }
 
+        // IMPORTANT FIXME: missing entries!!!
+        // TODO: maybe we can skip the rest of the file whenever we encounter a padded key? (but it is not so important because a page can have 256 keys at max, which is not so big)
         if ((indices[index] * constants::PAIR_SIZE) >= fds[index].second && (pages_read[index] * constants::PAGE_SIZE) < leaf_ends[index]) { // read next page
             fds[index].second = pread(fds[index].first, (char*)&leafNodes[index], constants::PAGE_SIZE, pages_read[index] * constants::PAGE_SIZE);
             #ifdef ASSERT

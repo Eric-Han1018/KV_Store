@@ -53,6 +53,7 @@ class LSMTree {
         LSMTree(string db_name, size_t depth, Bufferpool* buffer = nullptr) : db_name(db_name), buffer(buffer), num_levels(1) {
             while (depth > 0) {
                 int cur_depth = constants::LSMT_DEPTH - depth;
+                // FIXME: what if the depth is not enough?
                 levels.emplace_back(Level(cur_depth));
                 --depth;
             }
