@@ -97,6 +97,38 @@ const int64_t* SST::search_SST(const fs::path& file_path, const int64_t& key) {
     return nullptr;
 }
 
+// Merge the scanned arrays from two SSTs (stored as two consecutive sorted ranges, separated by first_end in sorted_KV)
+// The final sorted array is stored back in sorted_KV
+void SST::merge_scan_results(vector<pair<int64_t, int64_t>>*& sorted_KV, const size_t& first_end) {
+    std::vector<std::pair<int64_t, int64_t>> tmp;
+    tmp.reserve(sorted_KV->size());
+    size_t i = 0, j = first_end;
+    while (i < first_end && j < sorted_KV->size()) {
+        if ((*sorted_KV)[i].first < (*sorted_KV)[j].first) {
+            tmp.emplace_back((*sorted_KV)[i]);
+            ++i;
+        }
+        else if ((*sorted_KV)[i].first > (*sorted_KV)[j].first) {
+            tmp.emplace_back((*sorted_KV)[j]);
+            ++j;
+        }
+        else {
+            tmp.emplace_back((*sorted_KV)[i]);
+            ++i;
+            ++j;
+        }
+    }
+    while (i < first_end) {
+        tmp.emplace_back((*sorted_KV)[i]);
+        ++i;
+    }
+    while (j < sorted_KV->size()) {
+        tmp.emplace_back((*sorted_KV)[j]);
+        ++j;
+    }
+    *sorted_KV = std::move(tmp);
+}
+
 void SST::scan(vector<pair<int64_t, int64_t>>*& sorted_KV, const int64_t& key1, const int64_t& key2) {
     size_t len;
 
@@ -122,9 +154,7 @@ void SST::scan(vector<pair<int64_t, int64_t>>*& sorted_KV, const int64_t& key1, 
         scan_SST(*sorted_KV, *file_path_itr, key1, key2);
 
         // Merge into one sorted array
-        // FIXME: ask Prof if merge() is allowed
-        // FIXME: is using merge efficient?
-        inplace_merge(sorted_KV->begin(), sorted_KV->begin()+len, sorted_KV->end());
+        merge_scan_results(sorted_KV, len);
     }
 }
 
