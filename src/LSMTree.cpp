@@ -771,26 +771,39 @@ size_t LSMTree::calculate_sst_size(Level& cur_level) {
 
 bool LSMTree::check_bloomFilter(const fs::path& filter_path, const int64_t& key, Level& cur_level) {
     size_t total_num_bits = (calculate_sst_size(cur_level) * constants::BLOOM_FILTER_NUM_BITS); // Convert total num of kv entries to num of BF bits
+    size_t total_num_cache_lines = total_num_bits >> constants::CACHE_LINE_SIZE_SHIFT; // One cacheline has 256 Bytes = 2048 bits = 2^11 bits
 
     int fd = open(filter_path.c_str(), O_RDONLY | O_SYNC | O_DIRECT, 0777);
-    for (uint32_t i = 0; i < constants::BLOOM_FILTER_NUM_HASHES; ++i) {
-        size_t hash = murmur_hash(key, i) % total_num_bits;
+    #ifdef ASSERT
+        assert(fd != -1);
+    #endif
 
-        size_t page = hash >> (constants::BYTE_BIT_SHIFT + constants::PAGE_SIZE_SHIFT); // 4kB = 1<<12 bytes = 8<<12 bits = 1<<15 bits
+    // Get the cacheline index
+    size_t cache_line_hash = murmur_hash(key, 0) % total_num_cache_lines;
+    // To get the page index of the cacheline. One page has 16 (2^4) cachelines
+    size_t page = cache_line_hash >> constants::PAGE_CACHELINE_SHIFT;
+    // To get the cacheline index on the page (one of 2^4 cachelines)
+    size_t cache_line_hash_on_page = cache_line_hash & ((1<<constants::PAGE_CACHELINE_SHIFT) - 1);
 
-        char* tmp = nullptr;
-        read(filter_path, fd, tmp, page * constants::PAGE_SIZE, false, false);
+    char* tmp = nullptr;
+    read(filter_path, fd, tmp, page << constants::PAGE_SIZE_SHIFT, false, false);
 
-        // One-page-large bitmap
-        bitset<1<<(constants::BYTE_BIT_SHIFT + constants::PAGE_SIZE_SHIFT)>* bs = (bitset<1<<(constants::BYTE_BIT_SHIFT + constants::PAGE_SIZE_SHIFT)>*)tmp;
+    bitset<constants::CACHE_LINE_SIZE>* blocked_bitmaps = (bitset<constants::CACHE_LINE_SIZE>*)tmp; // Array of bitset<constants::CACHE_LINE_SIZE>
 
-        size_t offset = hash & ((1<<(constants::BYTE_BIT_SHIFT + constants::PAGE_SIZE_SHIFT))-1); // This is the mask to the the offset bit
-
-        if (!bs->test(offset)) {
-            close(fd);
+    for (uint32_t i = 1; i <= constants::BLOOM_FILTER_NUM_HASHES; ++i) {
+        // Get the bit index
+        size_t hash = murmur_hash(key, i) & ((1<<constants::CACHE_LINE_SIZE_SHIFT) - 1);
+        if (!blocked_bitmaps[cache_line_hash_on_page].test(hash)) {
+            int close_res = close(fd);
+            #ifdef ASSERT
+                assert(close_res != -1);
+            #endif
             return false;
         }
     }
-    close(fd);
+    int close_res = close(fd);
+    #ifdef ASSERT
+        assert(close_res != -1);
+    #endif
     return true;
 }
