@@ -210,14 +210,18 @@ void LSMTree::merge_down_helper(const vector<Level>::iterator& cur_level, const 
     int64_t min_key = constants::TOMBSTONE;
     if (last_compaction) min_key = minHeap.top().data.first;
 
+    int64_t last_tombstone_key;
     while (!minHeap.empty()) {
         HeapNode node = minHeap.top();
         minHeap.pop();
-
+        if (largest_level && node.data.second == constants::TOMBSTONE){
+            last_tombstone_key = node.data.first;
+        }
         // Add to result if it's the first element or a non-duplicate
         if ((total_count == 0) || // If it is the first element we ever inserted
             (output_buffer.size() == 0 && last_kv.first != node.data.first) || // Compare current node with the last element in the flushed buffer
-            (output_buffer.size() != 0 && output_buffer.back().first != node.data.first)) { // Compare current node with the last element in the current buffer
+            (output_buffer.size() != 0 && output_buffer.back().first != node.data.first) || // Compare current node with the last element in the current buffer
+            (largest_level && last_tombstone_key && node.data.first != last_tombstone_key)) { // Detect and remove TOMBSTONE in the largest level
             output_buffer.emplace_back(node.data);
             ++total_count;
             if (last_compaction)
@@ -371,7 +375,6 @@ void LSMTree::merge_down_helper(const vector<Level>::iterator& cur_level, const 
         ++next_level->cur_size;
         next_level->sorted_dir.emplace_back(output_filename);
     }
-    // TODO: TOMBSTONE detection when compacting
 }
 
 void Level::clear_level() {
