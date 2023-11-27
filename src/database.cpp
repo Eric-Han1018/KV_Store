@@ -270,8 +270,6 @@ int32_t Database::convertToSST(vector<vector<BTreeNode>>& non_leaf_nodes, aligne
         print_B_Tree(non_leaf_nodes, sorted_KV);
     #endif
 
-    // FIXME: the current implementation is to add a root no matter if the number of KVs exceed a node's capacity
-    // return non_leaf_nodes[0][0].size != 0 ? non_leaf_nodes[0][0].ptrs[0] : 0;
     return sorted_KV.size() * constants::PAIR_SIZE;
 }
 
@@ -307,15 +305,13 @@ string Database::writeToSST() {
     }
 
     // Create file name based on current time
-    // TODO: modify file name to a smarter way
     string SST_path = lsmtree->sst_path;
     string filter_path = lsmtree->filter_path;
-    string file_name = lsmtree->generate_filename(0, -1, -1, leaf_ends);
+    string file_name = lsmtree->generate_filename(0, memtable->min_key, memtable->max_key, leaf_ends);
     SST_path.append(file_name);
     filter_path.append(file_name);
 
     // Write data structure to binary file
-    // FIXME: do we need O_DIRECT for now?
     int fd = open(SST_path.c_str(), O_WRONLY | O_CREAT | O_SYNC | O_DIRECT, 0777);
     #ifdef ASSERT
         assert(fd!=-1);
@@ -378,64 +374,3 @@ void Database::clear_tree() {
     memtable->min_key = numeric_limits<int64_t>::max();
     memtable->max_key = numeric_limits<int64_t>::min();
 }
-
-// int main() {
-//     srand (time(NULL));
-//     Database db(constants::MEMTABLE_SIZE);
-
-//     int keys[] = {1, 2, 7, 16, 21, 22, 24, 29, 31, 32, 33, 35, 40, 61, 73, 74, 82, 90, 94, 95, 97, -1, -2};
-//     for (int key : keys) {
-//         db.put(key, 6);
-//     }
-
-//     for (int i = 0; i < constants::MEMTABLE_SIZE; ++i) {
-//         db.put((int64_t)rand(), 6);
-//     }
-//     db.put(-1, 6);
-
-
-//     // Find all existing keys
-//     for (int key : keys) {
-//         const int64_t* value = db.get(key, true);
-//         if (value != nullptr)
-//             cout << "Found: " << key << "->" << *value << endl;
-//     }
-
-//     // Find non-existing keys
-//     int keys_non[] = {3, 4, 5, 6, 8, 9, 13, 34, 37, 55, 70, 85, 96};
-//     for (int key : keys_non) {
-//         const int64_t* value = db.get(key, true);
-//         if (value != nullptr)
-//             cout << "Found: " << key << "->" << *value << endl;
-//     }
-
-//     // Scan 1: lower & higher bounds both within range
-//     const vector<pair<int64_t, int64_t>>* values = db.scan(20, 93, true);
-//     for (const auto& pair : *values) {
-//         cout << "Found {Key: " << pair.first << ", Value: " << pair.second << "}" << endl;
-//     }
-//     delete values;
-
-//     // Scan 2: lower & higher bounds both not within range
-//     values = db.scan(-20, 100, true);
-//     for (const auto& pair : *values) {
-//         cout << "Found {Key: " << pair.first << ", Value: " << pair.second << "}" << endl;
-//     }
-//     delete values;
-
-//     // Scan 3: all elements smaller than range
-//     values = db.scan(-100, -20, true);
-//     for (const auto& pair : *values) {
-//         cout << "Found {Key: " << pair.first << ", Value: " << pair.second << "}" << endl;
-//     }
-//     delete values;
-
-//     // Scan 4: all elements larger than range
-//     values = db.scan(100, 200, true);
-//     for (const auto& pair : *values) {
-//         cout << "Found {Key: " << pair.first << ", Value: " << pair.second << "}" << endl;
-//     }
-//     delete values;
-
-//     return 0;
-// }

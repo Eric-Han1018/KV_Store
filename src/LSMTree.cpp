@@ -19,7 +19,7 @@ const int64_t* LSMTree::get(const int64_t& key, const bool& use_btree) {
     // Iterate to read each file in descending order (new->old)
     for (int i = 0; i < (int)num_levels; ++i) {
         #ifdef ASSERT
-            assert(levels[i].sorted_dir.size() < constants::LSMT_SIZE_RATIO); // FIXME: Temp check
+            assert(levels[i].sorted_dir.size() < constants::LSMT_SIZE_RATIO);
         #endif
         for (auto file_path_itr = levels[i].sorted_dir.rbegin(); file_path_itr != levels[i].sorted_dir.rend(); ++file_path_itr) {
             #ifdef DEBUG
@@ -140,11 +140,9 @@ void LSMTree::merge_down_helper(const vector<Level>::iterator& cur_level, const 
 
     vector<size_t> leaf_ends(num_sst, -1);
     vector<BTreeLeafNode> leafNodes(num_sst);
-    // FIXME: ret好像没啥用诶
     vector<pair<int, int>> fds(num_sst); // pair<fd, ret> from open and pread
 
     for (int i = 0; i < num_sst; ++i) {
-        // FIXME: Seems that we no longer need min and max
         parse_SST_offset(cur_level->sorted_dir[i], leaf_ends[i]);
         fds[i].first = open((sst_path / cur_level->sorted_dir[i]).c_str(), O_RDONLY | O_SYNC | O_DIRECT, 0777);
         #ifdef ASSERT
@@ -191,6 +189,13 @@ void LSMTree::merge_down_helper(const vector<Level>::iterator& cur_level, const 
         }
     }
 
+    #ifdef ASSERT
+        assert(!minHeap.empty());
+    #endif
+    // Get the minimum key in the SST, for generating SST file name
+    int64_t min_key = constants::TOMBSTONE;
+    if (last_compaction) min_key = minHeap.top().data.first;
+
     while (!minHeap.empty()) {
         HeapNode node = minHeap.top();
         minHeap.pop();
@@ -231,6 +236,13 @@ void LSMTree::merge_down_helper(const vector<Level>::iterator& cur_level, const 
             // End of leaves
             fds[index].second = 0;
         }
+    }
+
+    // Get the maximum key in the SST, for generating SST file name
+    int64_t max_key = constants::TOMBSTONE;
+    if (last_compaction) {
+        if (output_buffer.size() > 0) max_key = output_buffer.back().first;
+        else max_key = last_kv.first;
     }
 
     // We pad repeated last element to form a complete 4kb node
@@ -311,7 +323,7 @@ void LSMTree::merge_down_helper(const vector<Level>::iterator& cur_level, const 
         assert(result != -1);
     #endif
 
-    string output_filename = generate_filename(next_level->level, -1, -1, leaf_end);
+    string output_filename = generate_filename(next_level->level, min_key, max_key, leaf_end);
     result = rename(temp_name.c_str(), (sst_path / output_filename).c_str());
     #ifdef ASSERT
         assert(result == 0);
@@ -391,24 +403,30 @@ void Level::clear_level() {
     sorted_dir.clear();
 }
 
-// Get min_key, max_key and leaf offset from a SST file's name
-void LSMTree::parse_SST_name(const string& file_name, int64_t& min_key, int64_t& max_key, size_t& file_end) {
+// Get min_key, max_key and leaf-end offset (end of leaf nodes & start of non-leaf nodes) from a SST file's name
+// SST filename format: <LSMTree_level>_<time><clock>_<min_key>_<max_key>_<leaf_end>.bytes
+void LSMTree::parse_SST_name(const string& file_name, int64_t& min_key, int64_t& max_key, size_t& leaf_end) {
     size_t first = file_name.find('_');
     size_t second = file_name.find('_', first + 1);
     size_t third = file_name.find('_', second + 1);
     size_t last = file_name.find_last_of('_');
-    size_t dot = file_name.find_last_of('.');
 
     min_key = strtoll(file_name.substr(second + 1, third - second - 1).c_str(), nullptr, 10);
     max_key = strtoll(file_name.substr(third + 1, last - third - 1).c_str(), nullptr, 10);
-    file_end = stoi(file_name.substr(last + 1, dot - last - 1));
+    parse_SST_offset(file_name, leaf_end);
+
+    #ifdef ASSERT
+        // If either of them is TOMBSTONE, it means that they are not initialized
+        assert(min_key != constants::TOMBSTONE);
+        assert(max_key != constants::TOMBSTONE);
+    #endif
 }
 
 // Get only the leaf offset from a SST file's name
-void LSMTree::parse_SST_offset(const string& file_name, size_t& file_end) {
+void LSMTree::parse_SST_offset(const string& file_name, size_t& leaf_end) {
     size_t start_pos = file_name.find_last_of("_");
     size_t end_pos = file_name.find('.', start_pos);
-    file_end = stoi(file_name.substr(start_pos + 1, end_pos - start_pos - 1));
+    leaf_end = stoi(file_name.substr(start_pos + 1, end_pos - start_pos - 1));
 }
 
 // Get only the level from a SST file's name
@@ -563,17 +581,21 @@ void LSMTree::scan(vector<pair<int64_t, int64_t>>*& sorted_KV, const int64_t& ke
             #ifdef DEBUG
                 cout << "Scanning file: " << *file_path_itr << "..." << endl;
             #endif
-            // Skip if the keys is not between min_key and max_key
+
             int64_t min_key, max_key;
             size_t file_end = fs::file_size(sst_path / *file_path_itr);
             size_t non_leaf_start;
             parse_SST_name(*file_path_itr, min_key, max_key, non_leaf_start);
-            // if (key2 < min_key || key1 > max_key) {
-            //     #ifdef DEBUG
-            //         cout << "key is not in range of: " << *file_path_itr << endl;
-            //     #endif
-            //     continue;
-            // }
+
+            // EXTRA FEATURE
+            // Since Bloom Filter does not help with scan(), we use min_key & max_key to
+            // make db skip SSTs if the scan is not within the key range of the SST
+            if (key2 < min_key || key1 > max_key) {
+                #ifdef DEBUG
+                    cout << "key is not in range of: " << *file_path_itr << endl;
+                #endif
+                continue;
+            }
 
             // Store current size of array for merging
             len = sorted_KV->size();
@@ -837,4 +859,23 @@ bool LSMTree::check_bloomFilter(const fs::path& filter_path, const int64_t& key,
         assert(close_res != -1);
     #endif
     return true;
+}
+
+string LSMTree::generate_filename(const size_t& level, const int64_t& min_key, const int64_t& max_key, const int32_t& leaf_ends) {
+    string cur_time = to_string(time(0));
+    string cur_clock = to_string(clock()); // In case there is a tie in time())
+    string prefix = to_string(level).append("_").append(cur_time).append(cur_clock).append("_");
+    string suffix = to_string(min_key).append("_").append(to_string(max_key)).append("_").append(to_string(leaf_ends)).append(".bytes");
+    return prefix.append(suffix);
+}
+
+void LSMTree::print_lsmt() {
+    for (size_t i = 0; i < num_levels; ++i) {
+        cout << "level " << to_string(i) << " cur_size: " << levels[i].cur_size << endl;
+        if (levels[i].cur_size > 0) {
+            for (size_t j = 0; j < levels[i].sorted_dir.size(); ++j) {
+                cout << " sorted_dir: " << levels[i].sorted_dir[j].c_str() << endl;
+            }
+        }
+    }
 }

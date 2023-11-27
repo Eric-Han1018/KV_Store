@@ -42,7 +42,6 @@ class aligned_KV_vector {
             data[len].first = key;
             data[len].second = value;
             ++len;
-            // FIXME: This is so slow, remember to delete it
             #ifdef SLOW_ASSERT
                 assert(is_sorted(data, data+len));
             #endif

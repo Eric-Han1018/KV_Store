@@ -71,25 +71,8 @@ class LSMTree {
             return levels[0].cur_size + 1 < constants::LSMT_SIZE_RATIO;
         }
 
-        string generate_filename(size_t level, int64_t min_key, int64_t max_key, int32_t leaf_ends) {
-            string cur_time = to_string(time(0));
-            string cur_clock = to_string(clock()); // In case there is a tie in time())
-            string prefix = to_string(level).append("_").append(cur_time).append(cur_clock).append("_");
-            string suffix = to_string(min_key).append("_").append(to_string(max_key)).append("_").append(to_string(leaf_ends)).append(".bytes");
-            return prefix.append(suffix);
-        }
-
-        void print_lsmt() {
-            for (size_t i = 0; i < num_levels; ++i) {
-                cout << "level " << to_string(i) << " cur_size: " << levels[i].cur_size << endl;
-                if (levels[i].cur_size > 0) {
-                    for (size_t j = 0; j < levels[i].sorted_dir.size(); ++j) {
-                        cout << " sorted_dir: " << levels[i].sorted_dir[j].c_str() << endl;
-                    }
-                }
-            }
-        }
-
+        string generate_filename(const size_t& level, const int64_t& min_key, const int64_t& max_key, const int32_t& leaf_ends);
+        void print_lsmt();
         void parse_SST_level(const string& file_name, size_t& level);
         size_t calculate_sst_size(Level& cur_level);
 
@@ -98,8 +81,8 @@ class LSMTree {
         const int64_t* search_SST_BTree(int& fd, const fs::path& file_path, const int64_t& key, const size_t& file_end, const size_t& non_leaf_start);
         const int64_t* search_SST_Binary(int& fd, const fs::path& file_path, const int64_t& key, const size_t& file_end, const size_t& non_leaf_start);
         const int32_t search_BTree_non_leaf_nodes(const int& fd, const fs::path& file_path, const int64_t& key, const size_t& file_end, const size_t& non_leaf_start);
-        void parse_SST_name(const string& file_name, int64_t& min_key, int64_t& max_key, size_t& file_end);
-        void parse_SST_offset(const string& file_name, size_t& file_end);
+        void parse_SST_name(const string& file_name, int64_t& min_key, int64_t& max_key, size_t& leaf_end);
+        void parse_SST_offset(const string& file_name, size_t& leaf_end);
         void scan_SST(vector<pair<int64_t, int64_t>>& sorted_KV, const string& file_path, const int64_t& key1, const int64_t& key2, const size_t& file_end, const size_t& non_leaf_start, bool& isLongScan, const bool& use_btree);
         const int32_t scan_helper_BTree(const int& fd, const fs::path& file_path, const int64_t& key1, const size_t& file_end, const size_t& non_leaf_start);
         const int32_t scan_helper_Binary(const int& fd, const fs::path& file_path, const int64_t& key1, const int32_t& num_elements, const size_t& file_end, const size_t& non_leaf_start);
