@@ -17,12 +17,14 @@ using namespace std;
 void Database::openDB(const string db_name) {
     this->db_name = db_name;
     fs::path directoryPath = constants::DATA_FOLDER + db_name;
+    bool db_exist = false;
 
     if (fs::exists(directoryPath / "sst") && fs::exists(directoryPath / "filter")
         && fs::is_directory(directoryPath / "sst") && fs::is_directory(directoryPath / "filter")) {
         #ifdef DEBUG
             std::cout << "Directory exists." << db_name << std::endl;
         #endif
+        db_exist = true;
     } else {
         #ifdef DEBUG
             std::cout << "Directory does not exist." << db_name <<  std::endl;
@@ -34,21 +36,27 @@ void Database::openDB(const string db_name) {
     bufferpool = new Bufferpool(constants::BUFFER_POOL_CAPACITY);
     lsmtree = new LSMTree(db_name, constants::LSMT_DEPTH, bufferpool);
 
-    // Restoring the sorted list of existing SST files when reopen DB
-    vector<fs::path> sorted_dir;
-    int level = 0;
-    for (auto& file_path : fs::directory_iterator(lsmtree->sst_path)) {
-        sorted_dir.push_back(file_path.path().filename());
-    }
-    sort(sorted_dir.begin(), sorted_dir.end());
-    for (auto file_path_itr = sorted_dir.rbegin(); file_path_itr != sorted_dir.rend(); ++file_path_itr) {
-        if (lsmtree->levels[level].cur_size < lsmtree->levels[level].max_size) {
-            lsmtree->levels[level].sorted_dir.push_back(*file_path_itr);
-            ++lsmtree->levels[level].cur_size;
-        } else {
-            reverse(lsmtree->levels[level].sorted_dir.begin(), lsmtree->levels[level].sorted_dir.end());
-            ++level;
+    if (db_exist) {
+        // Restoring the sorted list of existing SST files when reopen DB
+        vector<fs::path> sorted_dir;
+        size_t level = 0;
+        for (auto& file_path : fs::directory_iterator(lsmtree->sst_path)) {
+            sorted_dir.push_back(file_path.path().filename());
         }
+        sort(sorted_dir.begin(), sorted_dir.end());
+        for (auto file_path_itr = sorted_dir.begin(); file_path_itr != sorted_dir.end(); ++file_path_itr) {
+            size_t cur_level;
+            lsmtree->parse_SST_level(*file_path_itr, cur_level);
+            if (cur_level == level) {
+                lsmtree->levels[level].sorted_dir.push_back(*file_path_itr);
+                ++lsmtree->levels[level].cur_size;
+            } else {
+                reverse(lsmtree->levels[level].sorted_dir.begin(), lsmtree->levels[level].sorted_dir.end());
+                ++level;
+                ++lsmtree->num_levels;
+            }
+        }
+        // FIXME: we don't know the cur_size for largest level after reopen...
     }
 }
 
@@ -87,6 +95,7 @@ const int64_t* Database::get(const int64_t& key, const bool use_btree){
         #ifdef DEBUG
             std::cout << "Has been deleted" << std::endl;
         #endif
+        delete result;
         return nullptr;
     }
     return result;
@@ -273,12 +282,16 @@ string Database::writeToSST() {
     // Content in std::vector is stored contiguously
     aligned_KV_vector sorted_KV(constants::MEMTABLE_SIZE); // Stores all non-leaf elements
     vector<vector<BTreeNode>> non_leaf_nodes; // Stores all leaf elements
-    BloomFilter bloom_filter(constants::MEMTABLE_SIZE); // Stores the Bloom Filter
+    int32_t leaf_ends; // Stores the file offset of the end of leaf nodes
     scan_memtable(sorted_KV, memtable->root);
-
-    int32_t leaf_ends;
-    bool ifCompact = lsmtree->check_LSMTree_compaction(); // Check if we need to perform compaction in LSMTree
     
+    // Check if we need to perform compaction in LSMTree
+    bool ifCompact = lsmtree->check_LSMTree_compaction();
+
+    // Create a Bloom Filter for the SST
+    ++lsmtree->levels[0].cur_size; // We need to increment cur_size here because the Bloom Filter needs it
+    BloomFilter bloom_filter(lsmtree->calculate_sst_size(lsmtree->levels[0]));
+
     // We only build up the BTree if we do not need any compaction
     if (ifCompact) {
         leaf_ends = convertToSST(non_leaf_nodes, sorted_KV, bloom_filter);
@@ -297,10 +310,7 @@ string Database::writeToSST() {
     // TODO: modify file name to a smarter way
     string SST_path = lsmtree->sst_path;
     string filter_path = lsmtree->filter_path;
-
-    time_t current_time = time(0);
-    clock_t current_clock = clock(); // In case there is a tie in time()
-    string file_name = to_string(current_time).append(to_string(current_clock)).append("_").append(to_string(-1)).append("_").append(to_string(-1)).append("_").append(to_string(leaf_ends)).append(".bytes");
+    string file_name = lsmtree->generate_filename(0, -1, -1, leaf_ends);
     SST_path.append(file_name);
     filter_path.append(file_name);
 
