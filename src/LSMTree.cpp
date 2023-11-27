@@ -43,7 +43,10 @@ const int64_t* LSMTree::get(const int64_t& key, const bool& use_btree) {
             size_t non_leaf_start;
             parse_SST_offset(*file_path_itr, non_leaf_start);
             const int64_t* value = search_SST(sst_path / (*file_path_itr), key, file_end, non_leaf_start, use_btree);
-            if (value != nullptr && *value == constants::TOMBSTONE) return nullptr;
+            if (value != nullptr && *value == constants::TOMBSTONE){
+                delete value;
+                return nullptr;
+            }
             if (value != nullptr) return value;
             #ifdef DEBUG
                 cout << "Not found key: " << key << " in file: " << *file_path_itr << endl;

@@ -95,6 +95,7 @@ const int64_t* Database::get(const int64_t& key, const bool use_btree){
         #ifdef DEBUG
             std::cout << "Has been deleted" << std::endl;
         #endif
+        delete result;
         return nullptr;
     }
     return result;
