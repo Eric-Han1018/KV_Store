@@ -73,12 +73,20 @@ void LSMTree::add_SST(const string& file_name) {
         #ifdef ASSERT
             // At this stage, the compaction is finished, so all intermediate SSTs have been deleted.
             // Thus, all SSTs now are BTrees and they all have Bloom Filters
-            for (Level& level : levels) {
+            for (size_t i = 0; i < num_levels; ++i) {
+                Level level = levels[i];
                 for (fs::path& file_name : level.sorted_dir) {
                     assert(fs::exists(sst_path / file_name));
                     assert(fs::exists(filter_path / file_name));
+                    size_t which_level;
+                    parse_SST_level(file_name, which_level);
+                    assert(which_level == level.level);
                 }
+                if (!level.last_level) assert(level.cur_size == level.sorted_dir.size());
             }
+            // Check Dostoevsky, where the last level needs to have only one big SST
+            assert(levels[num_levels-1].last_level);
+            assert(levels[num_levels-1].sorted_dir.size() == 1);
         #endif
     }
     #ifdef DEBUG
@@ -106,6 +114,7 @@ void LSMTree::merge_down(const vector<Level>::iterator& cur_level) {
         last_compaction = true;
     }
 
+    // TODO: optimize the merge
     merge_down_helper(cur_level, next_level, cur_level->cur_size, last_compaction, cur_level->last_level);
 
     // check if the next_level is largest level, if so compact into one large SST if the cur_size <= LSMT_SIZE_RATIO
@@ -122,8 +131,13 @@ void LSMTree::merge_down(const vector<Level>::iterator& cur_level) {
 void LSMTree::largest_level_move_down(const vector<Level>::iterator& cur_level) {
     string new_filename = cur_level->sorted_dir[0].c_str();
     vector<Level>::iterator next_level = cur_level + 1;
-    new_filename[0] = next_level->level;
-    next_level->sorted_dir.emplace_back(cur_level->sorted_dir[0]);
+
+    // Rename the prefix of the file to indicate the new level
+    new_filename[0] = '0' + next_level->level;
+    next_level->sorted_dir.emplace_back(new_filename);
+    rename((sst_path / cur_level->sorted_dir[0]).c_str(), (sst_path / new_filename).c_str());
+    rename((filter_path / cur_level->sorted_dir[0]).c_str(), (filter_path / new_filename).c_str());
+
     ++next_level->cur_size;
     next_level->last_level = true;
     cur_level->clear_level();
@@ -355,47 +369,7 @@ void LSMTree::merge_down_helper(const vector<Level>::iterator& cur_level, const 
         ++next_level->cur_size;
         next_level->sorted_dir.emplace_back(output_filename);
     }
-}
-
-// FIXME: Move this and the one in database.cpp to ultil.cpp??
-/* Insert non-leaf elements into their node in the corresponding level
- * Non-leaf Node Structure (see SST.h): |...keys...|...offsets....|# of keys|
- */
-void LSMTree::insertHelper(vector<vector<BTreeNode>>& non_leaf_nodes, vector<int32_t>& counters, const int64_t& key, int32_t current_level) {
-    // If first time access the level, create it
-    if (current_level >= (int32_t)non_leaf_nodes.size()) {
-        non_leaf_nodes.emplace_back(vector<BTreeNode>());
-        counters.emplace_back(0);
-    }
-    int& counter = counters[current_level];
-    vector<BTreeNode>& level = non_leaf_nodes[current_level];
-
-    // Get the offset in the node
-    int offset = counter % constants::KEYS_PER_NODE;
-    // If first time access the node
-    if (offset == 0) {
-        // Case 1: the node needs to be sent to higher level
-        if (counter != 0 // Exclude the first element
-        && ((current_level + 1) >= (int32_t)non_leaf_nodes.size()  // It is the first time access the next level
-        || (counter / constants::KEYS_PER_NODE) > counters[current_level + 1])) { // The node has not been sent up to the next level
-            insertHelper(non_leaf_nodes, counters, key, current_level + 1);
-            return;
-        }
-        // Case 2: The previous node has been sent to the higher level. Now insert the next node
-        level.emplace_back(BTreeNode());
-    }
-    BTreeNode& node = level[counter / constants::KEYS_PER_NODE];
-
-    // Insert into the node
-    node.keys[offset] = key;
-    // Assign offsets, started with 0 at each level
-    node.ptrs[offset] = (counter / constants::KEYS_PER_NODE) * (constants::KEYS_PER_NODE + 1) + offset;
-    node.ptrs[offset + 1] = node.ptrs[offset] + 1; // The next ptr is always one index larger than the first one
-
-    // A node might not be full, so need to count the size
-    ++node.size;
-    // The counter counts the next element to insert
-    ++counter;
+    // TODO: TOMBSTONE detection when compacting
 }
 
 void Level::clear_level() {
@@ -416,9 +390,7 @@ void LSMTree::parse_SST_name(const string& file_name, int64_t& min_key, int64_t&
     parse_SST_offset(file_name, leaf_end);
 
     #ifdef ASSERT
-        // If either of them is TOMBSTONE, it means that they are not initialized
-        assert(min_key != constants::TOMBSTONE);
-        assert(max_key != constants::TOMBSTONE);
+        assert(min_key < max_key);
     #endif
 }
 
@@ -432,7 +404,7 @@ void LSMTree::parse_SST_offset(const string& file_name, size_t& leaf_end) {
 // Get only the level from a SST file's name
 void LSMTree::parse_SST_level(const string& file_name, size_t& level) {
     size_t first = file_name.find('_');
-    level = stoi(file_name.substr(0, first - 1));
+    level = stoi(file_name.substr(0, first));
 }
 
 // Search in BTree non-leaf nodes to find the offset of the leaf
@@ -571,6 +543,39 @@ const int64_t* LSMTree::search_SST(const fs::path& file_path, const int64_t& key
     return result;
 }
 
+// Merge the scanned arrays from two SSTs (stored as two consecutive sorted ranges, separated by first_end in sorted_KV)
+// The final sorted array is stored back in sorted_KV
+void LSMTree::merge_scan_results(vector<pair<int64_t, int64_t>>*& sorted_KV, const size_t& first_end) {
+    std::vector<std::pair<int64_t, int64_t>> tmp;
+    tmp.reserve(sorted_KV->size());
+    size_t i = 0, j = first_end;
+    while (i < first_end && j < sorted_KV->size()) {
+        if ((*sorted_KV)[i].first < (*sorted_KV)[j].first) {
+            tmp.emplace_back((*sorted_KV)[i]);
+            ++i;
+        }
+        else if ((*sorted_KV)[i].first > (*sorted_KV)[j].first) {
+            tmp.emplace_back((*sorted_KV)[j]);
+            ++j;
+        }
+        else {
+            tmp.emplace_back((*sorted_KV)[i]);
+            ++i;
+            ++j;
+        }
+    }
+    while (i < first_end) {
+        tmp.emplace_back((*sorted_KV)[i]);
+        ++i;
+    }
+    while (j < sorted_KV->size()) {
+        tmp.emplace_back((*sorted_KV)[j]);
+        ++j;
+    }
+    *sorted_KV = std::move(tmp);
+}
+
+// Perform scan operation in SSTs
 void LSMTree::scan(vector<pair<int64_t, int64_t>>*& sorted_KV, const int64_t& key1, const int64_t& key2, const bool& use_btree) {
     size_t len;
     bool isLongScan = false;
@@ -604,34 +609,7 @@ void LSMTree::scan(vector<pair<int64_t, int64_t>>*& sorted_KV, const int64_t& ke
             scan_SST(*sorted_KV, sst_path / (*file_path_itr), key1, key2, file_end, non_leaf_start, isLongScan, use_btree);
 
             // Merge into one sorted array
-            // inplace_merge(sorted_KV->begin(), sorted_KV->begin()+len, sorted_KV->end());
-            std::vector<std::pair<int64_t, int64_t>> tmp;
-            tmp.reserve(sorted_KV->size());
-            size_t i = 0, j = len;
-            while (i < len && j < sorted_KV->size()) {
-                if ((*sorted_KV)[i].first < (*sorted_KV)[j].first) {
-                    tmp.emplace_back((*sorted_KV)[i]);
-                    ++i;
-                } 
-                else if ((*sorted_KV)[i].first > (*sorted_KV)[j].first) {
-                    tmp.emplace_back((*sorted_KV)[j]);
-                    ++j;
-                } 
-                else {
-                    tmp.emplace_back((*sorted_KV)[i]);
-                    ++i;
-                    ++j; 
-                }
-            }
-            while (i < len) {
-                tmp.emplace_back((*sorted_KV)[i]);
-                ++i;
-            }
-            while (j < sorted_KV->size()) {
-                tmp.emplace_back((*sorted_KV)[j]);
-                ++j;
-            }
-            *sorted_KV = std::move(tmp);
+            merge_scan_results(sorted_KV, len);
         }
     }
 }

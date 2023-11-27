@@ -45,5 +45,5 @@ class Database {
         void scan_memtable(aligned_KV_vector& sorted_KV, Node* root);
         void clear_tree();
         int32_t convertToSST(vector<vector<BTreeNode>>& non_leaf_nodes, aligned_KV_vector& sorted_KV, BloomFilter& bloom_filter);
-        void insertHelper(vector<vector<BTreeNode>>& non_leaf_nodes, vector<int32_t>& counters, int64_t& key, int32_t current_level);
+        friend void insertHelper(vector<vector<BTreeNode>>& non_leaf_nodes, vector<int32_t>& counters, const int64_t& key, int32_t current_level);
 };

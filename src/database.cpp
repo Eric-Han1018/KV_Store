@@ -128,46 +128,6 @@ void Database::removeTombstones(std::vector<std::pair<int64_t, int64_t>>*& sorte
     }
 }
 
-/* Insert non-leaf elements into their node in the corresponding level
- * Non-leaf Node Structure (see SST.h): |...keys...|...offsets....|# of keys|
- */
-void Database::insertHelper(vector<vector<BTreeNode>>& non_leaf_nodes, vector<int32_t>& counters, int64_t& key, int32_t current_level) {
-    // If first time access the level, create it
-    if (current_level >= (int32_t)non_leaf_nodes.size()) {
-        non_leaf_nodes.emplace_back(vector<BTreeNode>());
-        counters.emplace_back(0);
-    }
-    int& counter = counters[current_level];
-    vector<BTreeNode>& level = non_leaf_nodes[current_level];
-
-    // Get the offset in the node
-    int offset = counter % constants::KEYS_PER_NODE;
-    // If first time access the node
-    if (offset == 0) {
-        // Case 1: the node needs to be sent to higher level
-        if (counter != 0 // Exclude the first element
-        && ((current_level + 1) >= (int32_t)non_leaf_nodes.size()  // It is the first time access the next level
-        || (counter / constants::KEYS_PER_NODE) > counters[current_level + 1])) { // The node has not been sent up to the next level
-            insertHelper(non_leaf_nodes, counters, key, current_level + 1);
-            return;
-        }
-        // Case 2: The previous node has been sent to the higher level. Now insert the next node
-        level.emplace_back(BTreeNode());
-    }
-    BTreeNode& node = level[counter / constants::KEYS_PER_NODE];
-
-    // Insert into the node
-    node.keys[offset] = key;
-    // Assign offsets, started with 0 at each level
-    node.ptrs[offset] = (counter / constants::KEYS_PER_NODE) * (constants::KEYS_PER_NODE + 1) + offset;
-    node.ptrs[offset + 1] = node.ptrs[offset] + 1; // The next ptr is always one index larger than the first one
-
-    // A node might not be full, so need to count the size
-    ++node.size;
-    // The counter counts the next element to insert
-    ++counter;
-}
-
 void print_B_Tree(vector<vector<BTreeNode>>& non_leaf_nodes, aligned_KV_vector& sorted_KV) {
     // Testing SST
     for (int i = (int)non_leaf_nodes.size() - 1; i >= 0; --i) {
@@ -307,7 +267,12 @@ string Database::writeToSST() {
     // Create file name based on current time
     string SST_path = lsmtree->sst_path;
     string filter_path = lsmtree->filter_path;
-    string file_name = lsmtree->generate_filename(0, memtable->min_key, memtable->max_key, leaf_ends);
+    string file_name;
+    if (ifCompact)
+        file_name = lsmtree->generate_filename(0, memtable->min_key, memtable->max_key, leaf_ends);
+    else
+        // If the file will be compated further, we randomly assign it two equal min&max keys
+        file_name = lsmtree->generate_filename(0, constants::TOMBSTONE, constants::TOMBSTONE, leaf_ends);
     SST_path.append(file_name);
     filter_path.append(file_name);
 
