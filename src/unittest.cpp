@@ -219,9 +219,13 @@ void test_scan_small(const string& db_name, const bool& ifBtree){
 // The inserted data are saved for later testcases
 void test_put_big(const string& db_name, Database& db, vector<pair<int64_t, int64_t>>*& memtable_data, vector<pair<int64_t, int64_t>>*& SST_data) {
     size_t SST_size = 32 * (1 << 20) / constants::PAIR_SIZE - constants::MEMTABLE_SIZE; // 31MB
+    // This stores data that will eventually be saved in the memtable
     memtable_data = new vector<pair<int64_t, int64_t>>(constants::MEMTABLE_SIZE); // 1MB
-    vector<pair<int64_t, int64_t>>* delete_data = new vector<pair<int64_t, int64_t>>(constants::MEMTABLE_SIZE); // 1MB
+    // This stores data that will eventually be saved in SSTs
     SST_data = new vector<pair<int64_t, int64_t>>(SST_size);
+    // This stores data that will be inserted & deleted in this test
+    vector<pair<int64_t, int64_t>>* delete_data = new vector<pair<int64_t, int64_t>>(constants::MEMTABLE_SIZE); // 1MB
+
 
     default_random_engine generator(443); // Fix seed for reproducibility
     uniform_int_distribution<int64_t> distrib(numeric_limits<int64_t>::min()+(int64_t)1, numeric_limits<int64_t>::max()); // Skip the tombstone
