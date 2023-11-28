@@ -422,6 +422,38 @@ void test_scan_big(const string& db_name, Database& db, vector<pair<int64_t, int
     delete values;
 }
 
+void test_open_close_DB(const string& db_name, Database& db, vector<pair<int64_t, int64_t>>*& memtable_data, vector<pair<int64_t, int64_t>>*& SST_data, vector<pair<int64_t, int64_t>>*& delete_data, const bool& ifBtree) {
+    db.closeDB();
+    db.openDB(db_name);
+
+    cout << "--- test case 1: Test get() from memtable after reopen ---" << endl;
+    const int64_t* value = nullptr;
+    for (pair<int64_t, int64_t>& entry : *memtable_data) {
+        value = db.get(entry.first, ifBtree);
+        assert(*value == entry.second);
+        delete value;
+    }
+
+    cout << "--- test case 2: Test get() from SST after reopen ---" << endl;
+    cout << "This may take a while..." << endl;
+    int64_t count = 0;
+    for (pair<int64_t, int64_t>& entry : *SST_data) {
+        // To make the test finish quick, we only test every 500th entry
+        if (count % 500 == 0){
+            value = db.get(entry.first, ifBtree);
+            assert(*value == entry.second);
+            delete value;
+        }
+        ++count;
+    }
+
+    cout << "--- test case 4: Test get() from deleted keys after reopen ---" << endl;
+    cout << "This may take a while..." << endl;
+    for (pair<int64_t, int64_t>& entry : *delete_data) {
+        value = db.get(entry.first, ifBtree);
+        assert(value == nullptr);
+    }
+}
 
 int main(int argc, char **argv) {
     // Testing DB with small memtable capacities
@@ -469,6 +501,10 @@ int main(int argc, char **argv) {
     cout << "\nTest passed\n" << endl;
     cout << "\n===== Test Scan(key1, key2) on big memtable (Binary Search) =====\n" << endl;
     test_scan_big(db_name, db, memtable_data, SST_data, false);
+    cout << "\nTest passed\n" << endl;
+
+    cout << "\n===== Test closeDB and openDB on big memtable =====\n" << endl;
+    test_open_close_DB(db_name, db, memtable_data, SST_data, delete_data, true);
     cout << "\nTest passed\n" << endl;
 
     db.closeDB();

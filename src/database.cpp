@@ -44,19 +44,20 @@ void Database::openDB(const string db_name) {
             sorted_dir.push_back(file_path.path().filename());
         }
         sort(sorted_dir.begin(), sorted_dir.end());
+        size_t cur_level;
         for (auto file_path_itr = sorted_dir.begin(); file_path_itr != sorted_dir.end(); ++file_path_itr) {
-            size_t cur_level;
             lsmtree->parse_SST_level(*file_path_itr, cur_level);
-            if (cur_level == level) {
-                lsmtree->levels[level].sorted_dir.push_back(*file_path_itr);
-                ++lsmtree->levels[level].cur_size;
-            } else {
-                reverse(lsmtree->levels[level].sorted_dir.begin(), lsmtree->levels[level].sorted_dir.end());
-                ++level;
-                ++lsmtree->num_levels;
+            lsmtree->levels[cur_level].sorted_dir.push_back(*file_path_itr);
+            ++lsmtree->levels[cur_level].cur_size;
+        }
+        lsmtree->levels[0].last_level = false;
+        lsmtree->levels[cur_level].last_level = true;
+        lsmtree->num_levels = cur_level + 1;
+        for (int i = 0; i < lsmtree->num_levels; ++i) {
+            if (lsmtree->levels[i].sorted_dir.size() > 1) {
+                reverse(lsmtree->levels[i].sorted_dir.begin(), lsmtree->levels[i].sorted_dir.end());
             }
         }
-        // FIXME: we don't know the cur_size for largest level after reopen...
     }
 }
 
