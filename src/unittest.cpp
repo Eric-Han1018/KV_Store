@@ -246,6 +246,7 @@ void test_put_big(const string& db_name, Database& db, vector<pair<int64_t, int6
     // Shuffle the data
     shuffle(memtable_data->begin(), memtable_data->end(), generator);
     shuffle(SST_data->begin(), SST_data->end(), generator);
+    shuffle(delete_data->begin(), delete_data->end(), generator);
 
     cout << "--- test case 1: Test put() without exceeding tree capacity ---" << endl;
     for (int64_t i = 0; i < constants::MEMTABLE_SIZE; ++i) {
@@ -260,17 +261,15 @@ void test_put_big(const string& db_name, Database& db, vector<pair<int64_t, int6
         // Note: these data will be deleted in the test case below
         db.put(SST_data->at(i).first, SST_data->at(i).second + 2);
     }
-    for (int64_t i = 2 * constants::MEMTABLE_SIZE; i < (int64_t)SST_data->size(); ++i) {
-        db.put(SST_data->at(i).first, SST_data->at(i).second);
-    }
-    // Note: these data will be deleted in the test case below
     for (int64_t i = 0; i < constants::MEMTABLE_SIZE; ++i) {
+        // Note: these data will be deleted in the test case below
         db.put(delete_data->at(i).first, delete_data->at(i).second);
     }
     // Now memtable should be full
     assert(db.memtable->curr_size == db.memtable->memtable_size);
 
     cout << "--- test case 3: Test Update & Deletion on SST ---" << endl;
+    cout << "This may take a while..." << endl;
     for (int64_t i = 0; i < constants::MEMTABLE_SIZE; ++i) {
         // Insert same data as in test case1 while using different values
         db.put(SST_data->at(i).first, SST_data->at(i).second);
@@ -285,6 +284,10 @@ void test_put_big(const string& db_name, Database& db, vector<pair<int64_t, int6
     }
     // Now memtable should be full
     assert(db.memtable->curr_size == db.memtable->memtable_size);
+    // Here we insert more data. This is for testing get() and scan() later-on
+    for (int64_t i = 2 * constants::MEMTABLE_SIZE; i < (int64_t)SST_data->size(); ++i) {
+        db.put(SST_data->at(i).first, SST_data->at(i).second);
+    }
     // Delete entries from delete_data vector
     for (int64_t i = 0; i < constants::MEMTABLE_SIZE; ++i) {
         db.del(delete_data->at(i).first);
@@ -300,7 +303,7 @@ void test_put_big(const string& db_name, Database& db, vector<pair<int64_t, int6
     }
     // Now memtable should only have one spot left
     assert(db.memtable->curr_size == db.memtable->memtable_size - 1);
-    // We delete half of the entries in memtable, which shoule be equivalent to updates with TOMBSTONEs
+    // We delete half of the entries in memtable, which should be equivalent to updates with TOMBSTONEs
     // Since the updates happen on memtable, they should be updated in-place
     for (int64_t i = 0; i < constants::MEMTABLE_SIZE - 1; i += 2) {
         db.del(memtable_data->at(i).first);
@@ -313,6 +316,8 @@ void test_put_big(const string& db_name, Database& db, vector<pair<int64_t, int6
     }
     // Now memtable should be full
     assert(db.memtable->curr_size == db.memtable->memtable_size);
+
+    delete delete_data;
 }
 
 // Test get() on big data size
