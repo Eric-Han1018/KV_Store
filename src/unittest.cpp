@@ -217,14 +217,14 @@ void test_scan_small(const string& db_name, const bool& ifBtree){
 
 // Test put() with 32MB data + 1MB updates + 1MB deletion&re-insert + 1MB pure deletion
 // The inserted data are saved for later testcases
-void test_put_big(const string& db_name, Database& db, vector<pair<int64_t, int64_t>>*& memtable_data, vector<pair<int64_t, int64_t>>*& SST_data) {
+void test_put_big(const string& db_name, Database& db, vector<pair<int64_t, int64_t>>*& memtable_data, vector<pair<int64_t, int64_t>>*& SST_data, vector<pair<int64_t, int64_t>>*& delete_data) {
     size_t SST_size = 32 * (1 << 20) / constants::PAIR_SIZE - constants::MEMTABLE_SIZE; // 31MB
     // This stores data that will eventually be saved in the memtable
     memtable_data = new vector<pair<int64_t, int64_t>>(constants::MEMTABLE_SIZE); // 1MB
     // This stores data that will eventually be saved in SSTs
     SST_data = new vector<pair<int64_t, int64_t>>(SST_size);
     // This stores data that will be inserted & deleted in this test
-    vector<pair<int64_t, int64_t>>* delete_data = new vector<pair<int64_t, int64_t>>(constants::MEMTABLE_SIZE); // 1MB
+    delete_data = new vector<pair<int64_t, int64_t>>(constants::MEMTABLE_SIZE); // 1MB
 
 
     default_random_engine generator(443); // Fix seed for reproducibility
@@ -316,12 +316,10 @@ void test_put_big(const string& db_name, Database& db, vector<pair<int64_t, int6
     }
     // Now memtable should be full
     assert(db.memtable->curr_size == db.memtable->memtable_size);
-
-    delete delete_data;
 }
 
 // Test get() on big data size
-void test_get_big(const string& db_name, Database& db, vector<pair<int64_t, int64_t>>*& memtable_data, vector<pair<int64_t, int64_t>>*& SST_data, const bool& ifBtree) {
+void test_get_big(const string& db_name, Database& db, vector<pair<int64_t, int64_t>>*& memtable_data, vector<pair<int64_t, int64_t>>*& SST_data, vector<pair<int64_t, int64_t>>*& delete_data, const bool& ifBtree) {
     cout << "--- test case 1: Test get() from memtable ---" << endl;
     const int64_t* value = nullptr;
     for (pair<int64_t, int64_t>& entry : *memtable_data) {
@@ -344,7 +342,6 @@ void test_get_big(const string& db_name, Database& db, vector<pair<int64_t, int6
     }
 
     cout << "--- test case 3: Test get() from unexisted keys ---" << endl;
-    cout << "This may take a while..." << endl;
     // Get the minimum and maximum keys in the current database
     int64_t minimum = min_element(SST_data->begin(), SST_data->end())->first;
     minimum = min(minimum, min_element(memtable_data->begin(), memtable_data->end())->first);
@@ -359,6 +356,13 @@ void test_get_big(const string& db_name, Database& db, vector<pair<int64_t, int6
         value = db.get(distrib_min(generator), ifBtree);
         assert(value == nullptr);
         value = db.get(distrib_max(generator), ifBtree);
+        assert(value == nullptr);
+    }
+
+    cout << "--- test case 4: Test get() from deleted keys ---" << endl;
+    cout << "This may take a while..." << endl;
+    for (pair<int64_t, int64_t>& entry : *delete_data) {
+        value = db.get(entry.first, ifBtree);
         assert(value == nullptr);
     }
 }
@@ -447,17 +451,18 @@ int main(int argc, char **argv) {
     db_name = "bigDB";
     vector<pair<int64_t, int64_t>>* memtable_data;
     vector<pair<int64_t, int64_t>>* SST_data;
+    vector<pair<int64_t, int64_t>>* delete_data;
     Database db(constants::MEMTABLE_SIZE);
     db.openDB(db_name);
 
     cout << "\n===== Test Put(key, value) on big memtable =====\n" << endl;
-    test_put_big(db_name, db, memtable_data, SST_data);
+    test_put_big(db_name, db, memtable_data, SST_data, delete_data);
     cout << "\nTest passed\n" << endl;
     cout << "\n===== Test Get(key) on big memtable (Btree) =====\n" << endl;
-    test_get_big(db_name, db, memtable_data, SST_data, true);
+    test_get_big(db_name, db, memtable_data, SST_data, delete_data, true);
     cout << "\nTest passed\n" << endl;
     cout << "\n===== Test Get(key) on big memtable (Binary Search) =====\n" << endl;
-    test_get_big(db_name, db, memtable_data, SST_data, false);
+    test_get_big(db_name, db, memtable_data, SST_data, delete_data, false);
     cout << "\nTest passed\n" << endl;
     cout << "\n===== Test Scan(key1, key2) on big memtable (Btree) =====\n" << endl;
     test_scan_big(db_name, db, memtable_data, SST_data, true);
@@ -473,5 +478,6 @@ int main(int argc, char **argv) {
 
     delete memtable_data;
     delete SST_data;
+    delete delete_data;
     return 0;
 }
