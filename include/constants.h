@@ -19,7 +19,7 @@ namespace constants {
     const bool USE_BUFFER_POOL = true;
     const size_t LSMT_SIZE_RATIO = 4;   // TODO: Experiment with different size ratio later
     const size_t LSMT_DEPTH = 10;
-    const int SCAN_RANGE_LIMIT = 3;
+    const int SCAN_RANGE_LIMIT = 1000;
     const int64_t TOMBSTONE = std::numeric_limits<int64_t>::min();
     const uint32_t CACHE_LINE_SIZE = 256 * 8; // bits
     const uint32_t BLOOM_FILTER_NUM_BITS = 5;
