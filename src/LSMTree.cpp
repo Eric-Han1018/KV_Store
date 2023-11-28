@@ -210,32 +210,39 @@ void LSMTree::merge_down_helper(const vector<Level>::iterator& cur_level, const 
     int64_t min_key = constants::TOMBSTONE;
     if (last_compaction) min_key = minHeap.top().data.first;
 
-    int64_t last_tombstone_key;
+    pair<bool,int64_t> found_tombstone; //(is_tombstone, key_tombstone)
+    found_tombstone.first = false;
     while (!minHeap.empty()) {
         HeapNode node = minHeap.top();
         minHeap.pop();
+        // If detect TOMBSTONE, reject any pairs with the same key until a new key appears
         if (largest_level && node.data.second == constants::TOMBSTONE){
-            last_tombstone_key = node.data.first;
+            found_tombstone.first = true;
+            found_tombstone.second = node.data.first;
         }
-        // Add to result if it's the first element or a non-duplicate
-        if ((total_count == 0) || // If it is the first element we ever inserted
-            (output_buffer.size() == 0 && last_kv.first != node.data.first) || // Compare current node with the last element in the flushed buffer
-            (output_buffer.size() != 0 && output_buffer.back().first != node.data.first) || // Compare current node with the last element in the current buffer
-            (largest_level && last_tombstone_key && node.data.first != last_tombstone_key)) { // Detect and remove TOMBSTONE in the largest level
-            output_buffer.emplace_back(node.data);
-            ++total_count;
-            if (last_compaction)
-                bloom_filter.set(node.data.first);
-            // Build the BTree non-leaf node
-            if (last_compaction && total_count % constants::KEYS_PER_NODE == 0) {
-                insertHelper(non_leaf_nodes, counters, output_buffer.back().first, current_level);
+        if (largest_level && found_tombstone.second != node.data.first){
+            found_tombstone.first = false;
+        }
+        if (!found_tombstone.first){
+            // Add to result if it's the first element or a non-duplicate
+            if ((total_count == 0) || // If it is the first element we ever inserted
+                (output_buffer.size() == 0 && last_kv.first != node.data.first) || // Compare current node with the last element in the flushed buffer
+                (output_buffer.size() != 0 && output_buffer.back().first != node.data.first)){ // Compare current node with the last element in the current buffer
+                output_buffer.emplace_back(node.data);
+                ++total_count;
+                if (last_compaction)
+                    bloom_filter.set(node.data.first);
+                // Build the BTree non-leaf node
+                if (last_compaction && total_count % constants::KEYS_PER_NODE == 0) {
+                    insertHelper(non_leaf_nodes, counters, output_buffer.back().first, current_level);
+                }
+                if (output_buffer.isFull()) {
+                    last_kv = output_buffer.flush_to_file(fd, SST_offset);
+                }
+                #ifdef DEBUG
+                    cout << "insert: key {" << node.data.first << "," << node.data.second << "} to output buffer" << endl;
+                #endif
             }
-            if (output_buffer.isFull()) {
-                last_kv = output_buffer.flush_to_file(fd, SST_offset);
-            }
-            #ifdef DEBUG
-                cout << "insert: key {" << node.data.first << "," << node.data.second << "} to output buffer" << endl;
-            #endif
         }
         int index = node.arrayIndex;
         if (indices[index] < constants::KEYS_PER_NODE) {
@@ -252,8 +259,7 @@ void LSMTree::merge_down_helper(const vector<Level>::iterator& cur_level, const 
             #endif
             ++pages_read[index];
             indices[index] = 0;
-        } else {
-            // End of leaves
+        } else if ((pages_read[index] * constants::PAGE_SIZE) >= leaf_ends[index]) {            // End of leaves
             fds[index].second = 0;
         }
     }
