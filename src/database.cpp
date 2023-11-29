@@ -92,36 +92,24 @@ void Database::insertHelper(vector<vector<BTreeNode>>& non_leaf_nodes, vector<in
     if (current_level >= (int32_t)non_leaf_nodes.size()) {
         non_leaf_nodes.emplace_back(vector<BTreeNode>());
         counters.emplace_back(0);
+        non_leaf_nodes.back().emplace_back(BTreeNode());
     }
-    int& counter = counters[current_level];
-    vector<BTreeNode>& level = non_leaf_nodes[current_level];
 
     // Get the offset in the node
-    int offset = counter % constants::KEYS_PER_NODE;
-    // If first time access the node
-    if (offset == 0) {
-        // Case 1: the node needs to be sent to higher level
-        if (counter != 0 // Exclude the first element
-        && ((current_level + 1) >= (int32_t)non_leaf_nodes.size()  // It is the first time access the next level
-        || (counter / constants::KEYS_PER_NODE) > counters[current_level + 1])) { // The node has not been sent up to the next level
-            insertHelper(non_leaf_nodes, counters, key, current_level + 1);
-            return;
-        }
-        // Case 2: The previous node has been sent to the higher level. Now insert the next node
-        level.emplace_back(BTreeNode());
+    int offset = counters[current_level] % constants::KEYS_PER_NODE;
+
+    if (offset == (constants::KEYS_PER_NODE + 1) / 2) {
+        insertHelper(non_leaf_nodes, counters, key, current_level + 1);
+        non_leaf_nodes[current_level].emplace_back(BTreeNode());
+    } else {
+        BTreeNode& node = non_leaf_nodes[current_level].back();
+        // Insert into the node
+        node.keys[node.size] = key;
+        // A node might not be full, so need to count the size
+        ++node.size;
     }
-    BTreeNode& node = level[counter / constants::KEYS_PER_NODE];
-
-    // Insert into the node
-    node.keys[offset] = key;
-    // Assign offsets, started with 0 at each level
-    node.ptrs[offset] = (counter / constants::KEYS_PER_NODE) * (constants::KEYS_PER_NODE + 1) + offset;
-    node.ptrs[offset + 1] = node.ptrs[offset] + 1; // The next ptr is always one index larger than the first one
-
-    // A node might not be full, so need to count the size
-    ++node.size;
     // The counter counts the next element to insert
-    ++counter;
+    ++counters[current_level];
 }
 
 void print_B_Tree(vector<vector<BTreeNode>>& non_leaf_nodes, aligned_KV_vector& sorted_KV) {
@@ -163,13 +151,7 @@ int32_t Database::convertToSST(vector<vector<BTreeNode>>& non_leaf_nodes, aligne
         }
     }
 
-    // To further simplify, we also send the last element of the last leaf node to its parent
-    int32_t bound;
-    if ((int32_t)sorted_KV.size() / constants::KEYS_PER_NODE % (constants::KEYS_PER_NODE + 1) == 0)
-        // Except this case, where we do not need to worry
-        bound = (int32_t)sorted_KV.size() - 1;
-    else
-        bound = (int32_t)sorted_KV.size();
+    int32_t bound = (int32_t)sorted_KV.size() - 1;
 
     // Iterate each leaf element to find all non-leaf elements
     for (int32_t count = 0; count < bound; ++count) {
@@ -179,33 +161,57 @@ int32_t Database::convertToSST(vector<vector<BTreeNode>>& non_leaf_nodes, aligne
         }
     }
 
+    // Insert fixup
+    if (non_leaf_nodes.size() >= 2) {
+        vector<BTreeNode>& second_last_level = non_leaf_nodes[non_leaf_nodes.size() - 2];
+        vector<BTreeNode>& last_level = non_leaf_nodes[non_leaf_nodes.size() - 1];
+        if (second_last_level.size() == 2 && last_level.size() == 1
+         && second_last_level[0].size + second_last_level[1].size + last_level[0].size <= constants::KEYS_PER_NODE) {
+            second_last_level[0].keys[second_last_level[0].size] = last_level[0].keys[0];
+            ++second_last_level[0].size;
+            for (int64_t i = 0; i < second_last_level[1].size; ++i) {
+                second_last_level[0].keys[second_last_level[0].size] = second_last_level[1].keys[i];
+                ++second_last_level[0].size;
+            }
+            non_leaf_nodes.pop_back();
+            second_last_level.pop_back();
+        }
+    }
+
+    #ifdef DEBUG
+        print_B_Tree(non_leaf_nodes, sorted_KV);
+    #endif
+
     // Change ptrs to independent file offsets
     int32_t off = 0;
-    for (int32_t i = (int32_t)non_leaf_nodes.size() - 1; i >= 0; --i) {
-        vector<BTreeNode>& level = non_leaf_nodes[i];
+    for (int32_t level_index = (int32_t)non_leaf_nodes.size() - 1; level_index >= 0; --level_index) {
+        vector<BTreeNode>& level = non_leaf_nodes[level_index];
         int32_t next_size;
         // Calculate # of nodes in next level
-        if (i >= 1) {
-            next_size = (int32_t)non_leaf_nodes[i - 1].size();
+        if (level_index >= 1) {
+            next_size = (int32_t)non_leaf_nodes[level_index - 1].size();
         } else {
             next_size = (int32_t)sorted_KV.size() / constants::KEYS_PER_NODE;
         }
 
         off += (int32_t)level.size() * (int32_t)sizeof(BTreeNode);
+        int32_t per_level_counter = 0;
         for (BTreeNode& node : level) {
-            for (int32_t& offset : node.ptrs) {
+            for (int32_t ptr_index = 0; ptr_index <= node.size; ++ptr_index) {
+                int32_t& offset = node.ptrs[ptr_index];
                 // If offset exceeds bound, set to -1
-                if (offset >= next_size) {
+                if (per_level_counter >= next_size) {
                     offset = -1;
                 } else {
                     // If it is the last non-leaf level, need to take offset as multiple of KV stores
-                    if (i == 0) {
-                        offset = offset * constants::KEYS_PER_NODE * constants::PAIR_SIZE + off;
+                    if (level_index == 0) {
+                        offset = per_level_counter * constants::KEYS_PER_NODE * constants::PAIR_SIZE + off;
                     } else {
                         // Otherwise, just use BTreeNode size
-                        offset = offset * (int32_t)sizeof(BTreeNode) + off;
+                        offset = per_level_counter * (int32_t)sizeof(BTreeNode) + off;
                     }
                 }
+                ++per_level_counter;
             }
         }
     }
@@ -213,9 +219,7 @@ int32_t Database::convertToSST(vector<vector<BTreeNode>>& non_leaf_nodes, aligne
         print_B_Tree(non_leaf_nodes, sorted_KV);
     #endif
 
-    // FIXME: the current implementation is to add a root no matter if the number of KVs exceed a node's capacity
-    // return non_leaf_nodes[0][0].size != 0 ? non_leaf_nodes[0][0].ptrs[0] : 0;
-    return non_leaf_nodes[0][0].ptrs[0];
+    return non_leaf_nodes.size() != 0 ? non_leaf_nodes[0][0].ptrs[0] : 0;
 }
 
 /* When memtable reaches its capacity, write it into an SST
@@ -294,7 +298,8 @@ void Database::clear_tree() {
 
 // int main() {
 //     srand (time(NULL));
-//     Database db(constants::MEMTABLE_SIZE);
+//     Database db(23);
+//     db.openDB("test");
 
 //     int keys[] = {1, 2, 7, 16, 21, 22, 24, 29, 31, 32, 33, 35, 40, 61, 73, 74, 82, 90, 94, 95, 97, -1, -2};
 //     for (int key : keys) {
@@ -306,12 +311,12 @@ void Database::clear_tree() {
 //     }
 //     db.put(-1, 6);
 
-
 //     // Find all existing keys
 //     for (int key : keys) {
 //         const int64_t* value = db.get(key, true);
 //         if (value != nullptr)
 //             cout << "Found: " << key << "->" << *value << endl;
+//         assert(value != nullptr);
 //     }
 
 //     // Find non-existing keys
@@ -320,6 +325,7 @@ void Database::clear_tree() {
 //         const int64_t* value = db.get(key, true);
 //         if (value != nullptr)
 //             cout << "Found: " << key << "->" << *value << endl;
+//         assert(value == nullptr);
 //     }
 
 //     // Scan 1: lower & higher bounds both within range
