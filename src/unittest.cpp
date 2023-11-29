@@ -332,8 +332,8 @@ void test_get_big(const string& db_name, Database& db, vector<pair<int64_t, int6
     cout << "This may take a while..." << endl;
     int64_t count = 0;
     for (pair<int64_t, int64_t>& entry : *SST_data) {
-        // To make the test finish quick, we only test every 500th entry
-        if (count % 500 == 0){
+        // To make the test finish quick, we only test every 250th entry
+        if (count % 250 == 0){
             value = db.get(entry.first, ifBtree);
             assert(*value == entry.second);
             delete value;
@@ -352,7 +352,7 @@ void test_get_big(const string& db_name, Database& db, vector<pair<int64_t, int6
     uniform_int_distribution<int64_t> distrib_min(numeric_limits<int64_t>::min(), minimum);
     uniform_int_distribution<int64_t> distrib_max(maximum, numeric_limits<int64_t>::max());
     // We test 500 unexisted entries, and they should all return nullptr (NOT FOUND)
-    for (int64_t i = SST_data->size() * 2; i < (int64_t)SST_data->size() * 2 + 500; ++i) {
+    for (int64_t i = 0; i < 500; ++i) {
         value = db.get(distrib_min(generator), ifBtree);
         assert(value == nullptr);
         value = db.get(distrib_max(generator), ifBtree);
@@ -383,8 +383,8 @@ void test_scan_big(const string& db_name, Database& db, vector<pair<int64_t, int
     cout << "This may take a while..." << endl;
     default_random_engine generator(443); // Fix seed for reproducibility
     uniform_int_distribution<int64_t> distrib_index(0, data.size() - 1);
-    // We test 50 scans, each with a incremental range
-    for (int i = 1; i <= 100; i+=2) {
+    // We test 100 scans, each with a incremental range
+    for (int i = 1; i <= 100; ++i) {
         int64_t index = distrib_index(generator);
         key1 = data[index].first;
         key2 = key1 + i * constants::PAGE_SIZE; // This may out of the large bound
@@ -416,7 +416,7 @@ void test_scan_big(const string& db_name, Database& db, vector<pair<int64_t, int
     cout << "--- test case 3: Test scan() with Sequential Flooding feature ---" << endl;
     key1 = data[0].first;
     // This should exceed the Sequential Scan range limit
-    key2 = key1 + 2 * constants::SCAN_RANGE_LIMIT * constants::PAGE_SIZE;
+    key2 = key1 + constants::SEQUENTIAL_FLOODING_LIMIT * constants::PAGE_SIZE;
     values = db.scan(key1, key2, ifBtree);
     assert(equal(values->begin(), values->end(), data.begin()));
     delete values;
@@ -438,8 +438,8 @@ void test_open_close_DB(const string& db_name, Database& db, vector<pair<int64_t
     cout << "This may take a while..." << endl;
     int64_t count = 0;
     for (pair<int64_t, int64_t>& entry : *SST_data) {
-        // To make the test finish quick, we only test every 500th entry
-        if (count % 500 == 0){
+        // To make the test finish quick, we only test every 250th entry
+        if (count % 250 == 0){
             value = db.get(entry.first, ifBtree);
             assert(*value == entry.second);
             delete value;

@@ -250,7 +250,6 @@ void LSMTree::merge_down_helper(const vector<Level>::iterator& cur_level, const 
             ++indices[index];
         }
 
-        // IMPORTANT FIXME: missing entries!!!
         // TODO: maybe we can skip the rest of the file whenever we encounter a padded key? (but it is not so important because a page can have 256 keys at max, which is not so big)
         if ((indices[index] * constants::PAIR_SIZE) >= fds[index].second && (pages_read[index] * constants::PAGE_SIZE) < leaf_ends[index]) { // read next page
             fds[index].second = pread(fds[index].first, (char*)&leafNodes[index], constants::PAGE_SIZE, pages_read[index] * constants::PAGE_SIZE);
@@ -295,7 +294,6 @@ void LSMTree::merge_down_helper(const vector<Level>::iterator& cur_level, const 
         output_buffer.flush_to_file(fd, SST_offset);
     }
 
-    // Below is in similar logic as in WriteToSST()
     // If it is not the last level, we do not build up the non-leaf nodes
     int64_t leaf_end = total_count*constants::PAIR_SIZE;
 
@@ -589,7 +587,9 @@ void LSMTree::merge_scan_results(vector<pair<int64_t, int64_t>>*& sorted_KV, con
 // Perform scan operation in SSTs
 void LSMTree::scan(vector<pair<int64_t, int64_t>>*& sorted_KV, const int64_t& key1, const int64_t& key2, const bool& use_btree) {
     size_t len;
-    bool isLongScan = false;
+    // counts the number of pages that the scan accesses
+    // Used for preventing sequential floodings
+    size_t scanPageCount = 0;
 
     // Scan each SST
     for (int i = 0; i < (int)num_levels; ++i) {
@@ -617,7 +617,7 @@ void LSMTree::scan(vector<pair<int64_t, int64_t>>*& sorted_KV, const int64_t& ke
             len = sorted_KV->size();
 
             // Scan the SST
-            scan_SST(*sorted_KV, sst_path / (*file_path_itr), key1, key2, file_end, non_leaf_start, isLongScan, use_btree);
+            scan_SST(*sorted_KV, sst_path / (*file_path_itr), key1, key2, file_end, non_leaf_start, scanPageCount, use_btree);
 
             // Merge into one sorted array
             merge_scan_results(sorted_KV, len);
@@ -689,7 +689,7 @@ const int32_t LSMTree::scan_helper_Binary(const int& fd, const fs::path& file_pa
 
 // Scan SST to get keys within range
 // The implementation is similar with search_SST()
-void LSMTree::scan_SST(vector<pair<int64_t, int64_t>>& sorted_KV, const string& file_path, const int64_t& key1, const int64_t& key2, const size_t& file_end, const size_t& non_leaf_start, bool& isLongScan, const bool& use_btree) {
+void LSMTree::scan_SST(vector<pair<int64_t, int64_t>>& sorted_KV, const string& file_path, const int64_t& key1, const int64_t& key2, const size_t& file_end, const size_t& non_leaf_start, size_t& scanPageCount, const bool& use_btree) {
     // Open the SST file
     int fd = open(file_path.c_str(), O_RDONLY | O_SYNC | O_DIRECT, 0777);
  
@@ -713,7 +713,6 @@ void LSMTree::scan_SST(vector<pair<int64_t, int64_t>>& sorted_KV, const string& 
     BTreeLeafNode* leafNode = nullptr;
     int prevPage = -1;
 
-    uint32_t scanRange = 0; // counts the number of pages that the scan spans
     bool bufferHit = true;
 
     for (auto i=start; i < num_elements ; ++i) {
@@ -725,26 +724,27 @@ void LSMTree::scan_SST(vector<pair<int64_t, int64_t>>& sorted_KV, const string& 
         int curPage = floor((i*constants::PAIR_SIZE) / constants::PAGE_SIZE);
         if (curPage != prevPage) {
             // Under long scan, since the page returned from read() is not in buffer pool, no eviction anymore and we need to delte it manually
-            if (isLongScan && !bufferHit) {
+            if (scanPageCount >= constants::SEQUENTIAL_FLOODING_LIMIT && !bufferHit) {
                 delete leafNode;
             }
-            // If the scan is larger than SCAN_RANGE_LIMIT, then do not put ANY following pages into buffer pool (including ones from other SSTs)
-            ++scanRange;
-            if (!isLongScan && scanRange >= constants::SCAN_RANGE_LIMIT) {
-                #ifdef DEBUG
-                    cout << "Long-Range Scan detected. Disabling buffer pool..." << endl;
-                #endif
-                isLongScan = true;
-            }
+            // If num of pages accessed by the scan is larger than SEQUENTIAL_FLOODING_LIMIT,
+            // then do not put ANY following pages into buffer pool
+            #ifdef DEBUG
+                if (scanPageCount == constants::SEQUENTIAL_FLOODING_LIMIT) {
+                        cout << "Long-Range Scan detected. Disabling buffer pool..." << endl;
+                }
+            #endif
+            ++scanPageCount;
 
             char* tmp = nullptr;
-            bufferHit = read(file_path.c_str(), fd, tmp, (curPage * constants::PAGE_SIZE), isLongScan, true);
+            bufferHit = read(file_path.c_str(), fd, tmp, (curPage * constants::PAGE_SIZE), scanPageCount, true);
             leafNode = (BTreeLeafNode*)tmp;
             prevPage = curPage;
         }
         cur = leafNode->data[i - curPage * constants::KEYS_PER_NODE];
 
         if (cur.first <= key2) { 
+            // Padding detection
             if (i > start && cur.first == prev) { // Our keys are unique
                 break;
             }
@@ -753,7 +753,7 @@ void LSMTree::scan_SST(vector<pair<int64_t, int64_t>>& sorted_KV, const string& 
             break; // until meeting the first value out of range
         }
     }
-    if (isLongScan && !bufferHit) {
+    if (scanPageCount >= constants::SEQUENTIAL_FLOODING_LIMIT && !bufferHit) {
         delete leafNode;
     }
     int close_res = close(fd);
@@ -776,7 +776,7 @@ const string LSMTree::parse_pid(const string& file_path, const int32_t& offset) 
 }
 
 // Read either from bufferpool or SST
-bool LSMTree::read(const string& file_path, const int& fd, char*& data, const off_t& offset, const bool& isLongScan, const bool& isLeaf) {
+bool LSMTree::read(const string& file_path, const int& fd, char*& data, const off_t& offset, const size_t& scanPageCount, const bool& isLeaf) {
     #ifdef ASSERT
         assert(offset >= 0);
     #endif
@@ -793,7 +793,7 @@ bool LSMTree::read(const string& file_path, const int& fd, char*& data, const of
             assert(ret == constants::KEYS_PER_NODE * constants::PAIR_SIZE);
         #endif
         // If a range query is long, we do not save it to the buffer pool (aka evict immediately)
-        if (!isLongScan) {
+        if (scanPageCount < constants::SEQUENTIAL_FLOODING_LIMIT) {
             buffer->insert_to_buffer(p_id, isLeaf, tmp);
         }
         data = tmp;
