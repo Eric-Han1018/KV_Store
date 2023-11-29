@@ -87,7 +87,7 @@ const vector<pair<int64_t, int64_t>>* Database::scan(const int64_t& key1, const 
 /* Insert non-leaf elements into their node in the corresponding level
  * Non-leaf Node Structure (see SST.h): |...keys...|...offsets....|# of keys|
  */
-void Database::insertHelper(vector<vector<BTreeNode>>& non_leaf_nodes, vector<int32_t>& counters, int64_t& key, int32_t current_level) {
+void Database::insertHelper(vector<vector<BTreeNode>>& non_leaf_nodes, vector<int32_t>& counters, int64_t& key, int32_t current_level, const int32_t& max_size) {
     // If first time access the level, create it
     if (current_level >= (int32_t)non_leaf_nodes.size()) {
         non_leaf_nodes.emplace_back(vector<BTreeNode>());
@@ -97,9 +97,10 @@ void Database::insertHelper(vector<vector<BTreeNode>>& non_leaf_nodes, vector<in
 
     // Get the offset in the node
     int offset = counters[current_level] % constants::KEYS_PER_NODE;
+    const int split_offset = (constants::KEYS_PER_NODE + 1) / 2;
 
-    if (offset == (constants::KEYS_PER_NODE + 1) / 2) {
-        insertHelper(non_leaf_nodes, counters, key, current_level + 1);
+    if (offset == split_offset && counters[current_level] < max_size - 1) {
+        insertHelper(non_leaf_nodes, counters, key, current_level + 1, (max_size - 1) / (split_offset + 1));
         non_leaf_nodes[current_level].emplace_back(BTreeNode());
     } else {
         BTreeNode& node = non_leaf_nodes[current_level].back();
@@ -152,35 +153,20 @@ int32_t Database::convertToSST(vector<vector<BTreeNode>>& non_leaf_nodes, aligne
     }
 
     int32_t bound = (int32_t)sorted_KV.size() - 1;
+    int32_t max_non_leaf = sorted_KV.size() / constants::KEYS_PER_NODE - 1;
 
     // Iterate each leaf element to find all non-leaf elements
     for (int32_t count = 0; count < bound; ++count) {
         // These are all elements in non-leaf nodes
         if (count % constants::KEYS_PER_NODE == constants::KEYS_PER_NODE - 1) {
-            insertHelper(non_leaf_nodes, counters, sorted_KV.data[count].first, current_level);
-        }
-    }
-
-    // Insert fixup
-    if (non_leaf_nodes.size() >= 2) {
-        vector<BTreeNode>& second_last_level = non_leaf_nodes[non_leaf_nodes.size() - 2];
-        vector<BTreeNode>& last_level = non_leaf_nodes[non_leaf_nodes.size() - 1];
-        if (second_last_level.size() == 2 && last_level.size() == 1
-         && second_last_level[0].size + second_last_level[1].size + last_level[0].size <= constants::KEYS_PER_NODE) {
-            second_last_level[0].keys[second_last_level[0].size] = last_level[0].keys[0];
-            ++second_last_level[0].size;
-            for (int64_t i = 0; i < second_last_level[1].size; ++i) {
-                second_last_level[0].keys[second_last_level[0].size] = second_last_level[1].keys[i];
-                ++second_last_level[0].size;
-            }
-            non_leaf_nodes.pop_back();
-            second_last_level.pop_back();
+            insertHelper(non_leaf_nodes, counters, sorted_KV.data[count].first, current_level, max_non_leaf);
         }
     }
 
     #ifdef DEBUG
         print_B_Tree(non_leaf_nodes, sorted_KV);
     #endif
+
 
     // Change ptrs to independent file offsets
     int32_t off = 0;
@@ -301,7 +287,7 @@ void Database::clear_tree() {
 //     Database db(23);
 //     db.openDB("test");
 
-//     int keys[] = {1, 2, 7, 16, 21, 22, 24, 29, 31, 32, 33, 35, 40, 61, 73, 74, 82, 90, 94, 95, 97, -1, -2};
+//     int keys[] = {1, 2, 7, 16, 21, 22, 24, 29, 31, 32, 33, 35, 40, 61, 73, 74, 82, 90, 94, 95, 97, 98, -1, -2};
 //     for (int key : keys) {
 //         db.put(key, 6);
 //     }
