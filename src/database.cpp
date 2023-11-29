@@ -62,19 +62,21 @@ void Database::openDB(const string db_name) {
            to change it back.
         */
         Level& last_level = lsmtree->levels[lsmtree->num_levels - 1];
-        #ifdef ASSERT
-            assert(last_level.sorted_dir.size() == 1);
-        #endif
-        string old_name = string(last_level.sorted_dir[0]);
-        // Parse the last level's size
-        int first = old_name.rfind('_');
-        int second = old_name.rfind('.');
-        last_level.cur_size = stoi(old_name.substr(first + 1, second - first - 1));
+        if (last_level.sorted_dir.size() > 0) {
+            #ifdef ASSERT
+                assert(last_level.sorted_dir.size() == 1);
+            #endif
+            string old_name = string(last_level.sorted_dir[0]);
+            // Parse the last level's size
+            int first = old_name.rfind('_');
+            int second = old_name.rfind('.');
+            last_level.cur_size = stoi(old_name.substr(first + 1, second - first - 1));
 
-        // Change back to the original filename format
-        string new_name = old_name.substr(0, first).append(".bytes");
-        rename((lsmtree->sst_path / old_name).c_str(), (lsmtree->sst_path / new_name).c_str());
-        last_level.sorted_dir[0] = new_name;
+            // Change back to the original filename format
+            string new_name = old_name.substr(0, first).append(".bytes");
+            rename((lsmtree->sst_path / old_name).c_str(), (lsmtree->sst_path / new_name).c_str());
+            last_level.sorted_dir[0] = new_name;
+        }
     }
 }
 
