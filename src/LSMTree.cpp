@@ -298,37 +298,7 @@ void LSMTree::merge_down_helper(const vector<Level>::iterator& cur_level, const 
     int64_t leaf_end = total_count*constants::PAIR_SIZE;
 
     if (last_compaction) {
-        // Change ptrs to independent file offsets
-        int64_t off = leaf_end;
-        for (int32_t i = (int32_t)non_leaf_nodes.size() - 1; i >= 0; --i) {
-            vector<BTreeNode>& level = non_leaf_nodes[i];
-            int32_t next_size;
-            // Calculate # of nodes in next level
-            if (i >= 1) {
-                next_size = (int32_t)non_leaf_nodes[i - 1].size();
-            } else {
-                next_size = total_count / constants::KEYS_PER_NODE;
-            }
-
-            off += (int32_t)level.size() * (int32_t)sizeof(BTreeNode);
-            for (BTreeNode& node : level) {
-                for (int32_t& offset : node.ptrs) {
-                    // If offset exceeds bound, set to -1
-                    if (offset >= next_size) {
-                        offset = -1;
-                    } else {
-                        // If it is the last non-leaf level, need to take offset as multiple of KV stores and points to the leaves
-                        if (i == 0) {
-                            offset = offset * constants::KEYS_PER_NODE * constants::PAIR_SIZE;
-                        } else {
-                            // Otherwise, just use BTreeNode size
-                            offset = offset * (int32_t)sizeof(BTreeNode) + off;
-                        }
-                    }
-                }
-            }
-        }
-
+        insertFixUp(non_leaf_nodes, total_count);
 
         int64_t offset = leaf_end;
         // Write non-leaf levels, starting from root

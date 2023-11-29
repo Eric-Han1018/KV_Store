@@ -166,26 +166,6 @@ void Database::removeTombstones(std::vector<std::pair<int64_t, int64_t>>*& sorte
     }
 }
 
-void print_B_Tree(vector<vector<BTreeNode>>& non_leaf_nodes, aligned_KV_vector& sorted_KV) {
-    // Testing SST
-    for (int i = (int)non_leaf_nodes.size() - 1; i >= 0; --i) {
-        for (auto node : non_leaf_nodes[i]) {
-            for (int j = 0; j < node.size; ++j) {
-                cout << node.ptrs[j] << "(" << node.keys[j] << ")";
-            }
-            cout << node.ptrs[node.size] << "     ";
-        }
-        cout << endl;
-    }
-
-    for (int i = 0; i < sorted_KV.size(); ++i) {
-        auto kv = sorted_KV.data[i];
-        cout << "{" << kv.first << "} ";
-        if ((i+1) % constants::KEYS_PER_NODE == 0) cout << "     ";
-    }
-    cout << endl;
-}
-
 void Database::del(const int64_t& key){
     put(key, constants::TOMBSTONE);
 }
@@ -234,36 +214,12 @@ int32_t Database::convertToSST(vector<vector<BTreeNode>>& non_leaf_nodes, aligne
         }
     }
 
-    // Change ptrs to independent file offsets
-    int32_t off = sorted_KV.size();
-    for (int32_t i = (int32_t)non_leaf_nodes.size() - 1; i >= 0; --i) {
-        vector<BTreeNode>& level = non_leaf_nodes[i];
-        int32_t next_size;
-        // Calculate # of nodes in next level
-        if (i >= 1) {
-            next_size = (int32_t)non_leaf_nodes[i - 1].size();
-        } else {
-            next_size = (int32_t)sorted_KV.size() / constants::KEYS_PER_NODE;
-        }
+    #ifdef DEBUG
+        print_B_Tree(non_leaf_nodes, sorted_KV);
+    #endif
 
-        off += (int32_t)level.size() * (int32_t)sizeof(BTreeNode);
-        for (BTreeNode& node : level) {
-            for (int32_t& offset : node.ptrs) {
-                // If offset exceeds bound, set to -1
-                if (offset >= next_size) {
-                    offset = -1;
-                } else {
-                    // If it is the last non-leaf level, need to take offset as multiple of KV stores
-                    if (i == 0) {
-                        offset = offset * constants::KEYS_PER_NODE * constants::PAIR_SIZE;
-                    } else {
-                        // Otherwise, just use BTreeNode size
-                        offset = offset * (int32_t)sizeof(BTreeNode) + off;
-                    }
-                }
-            }
-        }
-    }
+    insertFixUp(non_leaf_nodes, sorted_KV.size());
+
     #ifdef DEBUG
         print_B_Tree(non_leaf_nodes, sorted_KV);
     #endif
