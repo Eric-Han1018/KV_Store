@@ -39,7 +39,6 @@ void Database::openDB(const string db_name) {
     if (db_exist) {
         // Restoring the sorted list of existing SST files when reopen DB
         vector<fs::path> sorted_dir;
-        size_t level = 0;
         for (auto& file_path : fs::directory_iterator(lsmtree->sst_path)) {
             sorted_dir.push_back(file_path.path().filename());
         }
@@ -53,17 +52,53 @@ void Database::openDB(const string db_name) {
         lsmtree->levels[0].last_level = false;
         lsmtree->levels[cur_level].last_level = true;
         lsmtree->num_levels = cur_level + 1;
-        for (int i = 0; i < lsmtree->num_levels; ++i) {
+        for (size_t i = 0; i < lsmtree->num_levels; ++i) {
             if (lsmtree->levels[i].sorted_dir.size() > 1) {
                 reverse(lsmtree->levels[i].sorted_dir.begin(), lsmtree->levels[i].sorted_dir.end());
             }
         }
+
+        /* Since we change the name of the last_level's SST in closeDB(), we need
+           to change it back.
+        */
+        Level& last_level = lsmtree->levels[lsmtree->num_levels - 1];
+        #ifdef ASSERT
+            assert(last_level.sorted_dir.size() == 1);
+        #endif
+        string old_name = string(last_level.sorted_dir[0]);
+        // Parse the last level's size
+        int first = old_name.rfind('_');
+        int second = old_name.rfind('.');
+        last_level.cur_size = stoi(old_name.substr(first + 1, second - first - 1));
+
+        // Change back to the original filename format
+        string new_name = old_name.substr(0, first).append(".bytes");
+        rename((lsmtree->sst_path / old_name).c_str(), (lsmtree->sst_path / new_name).c_str());
+        last_level.sorted_dir[0] = new_name;
     }
 }
 
 void Database::closeDB() {
     if (memtable->memtable_size > 0) {
         string file_path = writeToSST();
+
+        /* For the purpose of reopen the DB in the future, we need to record the
+           size of the largest level, because it only has one big contiguous SST
+           in Dostoevsky (without this record, we can't tell if the last level
+           reaches capacity or not).
+        */
+        Level& last_level = lsmtree->levels[lsmtree->num_levels - 1];
+        string old_name = string(last_level.sorted_dir[0]);
+        #ifdef ASSERT
+            assert(last_level.sorted_dir.size() == 1);
+        #endif
+        // We add the current size of the last_level to its filename
+        // New format: <level>_<time><clock>_<min>_<max>_<BTree leaf end>_<level size>.bytes
+        string new_name = old_name.substr(0, old_name.find('.')).append("_")
+                                                                .append(to_string(last_level.cur_size))
+                                                                .append(".bytes");
+        rename((lsmtree->sst_path / old_name).c_str(), (lsmtree->sst_path / new_name).c_str());
+
         delete memtable;
     }
     if (lsmtree) {
