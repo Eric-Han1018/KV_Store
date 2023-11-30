@@ -76,7 +76,7 @@ void Database::openDB(const string db_name) {
 }
 
 void Database::closeDB() {
-    if (memtable->memtable_size > 0) {
+    if (memtable->curr_size > 0) {
         string file_path = writeToSST();
 
         /* For the purpose of reopen the DB in the future, we need to record the
@@ -95,7 +95,8 @@ void Database::closeDB() {
                                                                 .append(to_string(last_level.cur_size))
                                                                 .append(".bytes");
         rename((lsmtree->sst_path / old_name).c_str(), (lsmtree->sst_path / new_name).c_str());
-
+    }
+    if (memtable) {
         delete memtable;
     }
     if (lsmtree) {

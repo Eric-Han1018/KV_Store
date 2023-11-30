@@ -33,7 +33,7 @@ class Level {
         vector<fs::path> sorted_dir;
 
         Level(size_t level) : cur_size(0), level(level) {
-            last_level = false; //TODO: remember to modify it when implementing Dostoevsky!!
+            last_level = false;
         };
 
         ~Level() {};

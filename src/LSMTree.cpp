@@ -114,7 +114,7 @@ void LSMTree::merge_down(const vector<Level>::iterator& cur_level) {
         last_compaction = true;
     }
 
-    // TODO: optimize the merge
+    // TODO: optimize the merge: move files from cur_level to next_level without compaction, and then merge
     merge_down_helper(cur_level, next_level, cur_level->cur_size, last_compaction, cur_level->last_level);
 
     // check if the next_level is largest level, if so compact into one large SST if the cur_size <= LSMT_SIZE_RATIO
