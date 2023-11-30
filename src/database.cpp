@@ -235,7 +235,7 @@ string Database::writeToSST() {
 
     // Create a Bloom Filter for the SST
     ++lsmtree->levels[0].cur_size; // We need to increment cur_size here because the Bloom Filter needs it
-    BloomFilter bloom_filter(lsmtree->calculate_sst_size(lsmtree->levels[0]));
+    BloomFilter bloom_filter(lsmtree->calculate_sst_size(lsmtree->levels[0]), 0, lsmtree->num_levels);
 
     // We only build up the BTree if we do not need any compaction
     if (ifCompact) {

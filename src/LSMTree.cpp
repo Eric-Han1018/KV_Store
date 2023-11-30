@@ -172,7 +172,7 @@ void LSMTree::merge_down_helper(const vector<Level>::iterator& cur_level, const 
     // Output buffer that stores the KV-pairs
     aligned_KV_vector output_buffer(constants::KEYS_PER_NODE);
     // Bloom Filter for the SST
-    BloomFilter bloom_filter(calculate_sst_size(*next_level));
+    BloomFilter bloom_filter(calculate_sst_size(*next_level), next_level->level, num_levels);
     size_t total_count = 0; // Couts the total num of elements inserted so far
     int64_t SST_offset = 0;
     // Whenever the buffer is full, write to this file
@@ -795,7 +795,8 @@ size_t LSMTree::calculate_sst_size(Level& cur_level) {
 }
 
 bool LSMTree::check_bloomFilter(const fs::path& filter_path, const int64_t& key, Level& cur_level) {
-    size_t total_num_bits = (calculate_sst_size(cur_level) * constants::BLOOM_FILTER_NUM_BITS); // Convert total num of kv entries to num of BF bits
+    size_t total_num_bits = (calculate_sst_size(cur_level)
+                       * BloomFilter::calculate_num_bits_per_entry(cur_level.level, num_levels)); // Convert total num of kv entries to num of BF bits
     size_t total_num_cache_lines = total_num_bits >> constants::CACHE_LINE_SIZE_SHIFT; // One cacheline has 256 Bytes = 2048 bits = 2^11 bits
 
     int fd = open(filter_path.c_str(), O_RDONLY | O_SYNC | O_DIRECT, 0777);
