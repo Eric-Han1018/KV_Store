@@ -189,10 +189,10 @@ void LSMTree::merge_down_helper(const vector<Level>::iterator& cur_level, const 
     vector<int> pages_read(num_sst, 1);
     vector<int> indices(num_sst, 0);
 
-    // Btree variables
-    vector<vector<BTreeNode>> non_leaf_nodes; // Stores all leaf elements
-    vector<int32_t> counters; // This counts the number of elements in each level
-    int32_t current_level = 0;
+    // B-tree variables
+    vector<int64_t> non_leaf_keys; // Stores all the keys in all B-Tree non-leaf nodes
+    // Try to predict required memory using fan-out = KEYS_PER_NODE
+    if (last_compaction) non_leaf_keys.reserve(calculate_sst_size(*next_level) / constants::KEYS_PER_NODE);
     pair<int64_t, int64_t> last_kv = {-1, -1}; // This records the last key in the leaf
 
     // Initialize the heap with the first element of each SSTs
@@ -232,9 +232,9 @@ void LSMTree::merge_down_helper(const vector<Level>::iterator& cur_level, const 
                 ++total_count;
                 if (last_compaction)
                     bloom_filter.set(node.data.first);
-                // Build the BTree non-leaf node
                 if (last_compaction && total_count % constants::KEYS_PER_NODE == 0) {
-                    insertHelper(non_leaf_nodes, counters, output_buffer.back().first, current_level);
+                    // This is an element in one of the non-leaf nodes in the B-Tree
+                    non_leaf_keys.emplace_back(output_buffer.back().first);
                 }
                 if (output_buffer.isFull()) {
                     last_kv = output_buffer.flush_to_file(fd, SST_offset);
@@ -258,7 +258,7 @@ void LSMTree::merge_down_helper(const vector<Level>::iterator& cur_level, const 
             #endif
             ++pages_read[index];
             indices[index] = 0;
-        } else if ((pages_read[index] * constants::PAGE_SIZE) >= leaf_ends[index]) {            // End of leaves
+        } else if ((pages_read[index] * constants::PAGE_SIZE) >= leaf_ends[index]) { // End of leaves
             fds[index].second = 0;
         }
     }
@@ -288,20 +288,25 @@ void LSMTree::merge_down_helper(const vector<Level>::iterator& cur_level, const 
         #ifdef ASSERT
             assert(output_buffer.isFull());
         #endif
-        if (last_compaction && total_count / constants::KEYS_PER_NODE % (constants::KEYS_PER_NODE + 1) != 0) {
-            insertHelper(non_leaf_nodes, counters, output_buffer.back().first, current_level);
-        }
+        if (last_compaction) non_leaf_keys.emplace_back(output_buffer.back().first);
         output_buffer.flush_to_file(fd, SST_offset);
     }
 
-    // If it is not the last level, we do not build up the non-leaf nodes
+    // Build up the B-Tree if it is the last compaction
     int64_t leaf_end = total_count*constants::PAIR_SIZE;
-
     if (last_compaction) {
+        vector<vector<BTreeNode>> non_leaf_nodes; // Stores all leaf nodes
+        vector<int32_t> counters; // This counts the number of elements in each level
+        int32_t current_level = 0;
+        for (size_t i = 0; i < non_leaf_keys.size() - 1; ++i) {
+            // Fill the non_leaf_keys into one of the non-leaf levels
+            insertHelper(non_leaf_nodes, counters, non_leaf_keys[i], current_level, non_leaf_keys.size() - 1);
+        }
+        // Calculate the pointers in the B-Tree
         insertFixUp(non_leaf_nodes, total_count);
 
         int64_t offset = leaf_end;
-        // Write non-leaf levels, starting from root
+        // Write non-leaf levels to file, starting from root
         for (int32_t i = (int32_t)non_leaf_nodes.size() - 1; i >= 0; --i) {
             vector<BTreeNode>& level = non_leaf_nodes[i];
             int nbytes = pwrite(fd, (char*)&level[0], level.size()*sizeof(BTreeNode), offset);
@@ -391,6 +396,14 @@ const int32_t LSMTree::search_BTree_non_leaf_nodes(const int& fd, const fs::path
     int64_t offset = non_leaf_start;
     BTreeNode* curNode;
     char* tmp;
+
+    // If by any chance the SST only has one page, then it will just be a sorted array without any root
+    #ifdef ASSERT
+        assert(file_end >= non_leaf_start);
+    #endif
+    if (file_end == non_leaf_start) {
+        return 0;
+    }
 
     // Traverse B-Tree non-leaf nodes
     while (offset >= (int64_t)non_leaf_start) {

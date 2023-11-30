@@ -52,11 +52,6 @@ void Database::openDB(const string db_name) {
         lsmtree->levels[0].last_level = false;
         lsmtree->levels[cur_level].last_level = true;
         lsmtree->num_levels = cur_level + 1;
-        for (size_t i = 0; i < lsmtree->num_levels; ++i) {
-            if (lsmtree->levels[i].sorted_dir.size() > 1) {
-                reverse(lsmtree->levels[i].sorted_dir.begin(), lsmtree->levels[i].sorted_dir.end());
-            }
-        }
 
         /* Since we change the name of the last_level's SST in closeDB(), we need
            to change it back.
@@ -189,13 +184,8 @@ int32_t Database::convertToSST(vector<vector<BTreeNode>>& non_leaf_nodes, aligne
         }
     }
 
-    // To further simplify, we also send the last element of the last leaf node to its parent
-    int32_t bound = 0;
-    if ((int32_t)sorted_KV.size() / constants::KEYS_PER_NODE % (constants::KEYS_PER_NODE + 1) == 0)
-        // Except this case, where we do not need to worry
-        bound = (int32_t)sorted_KV.size() - 1;
-    else
-        bound = (int32_t)sorted_KV.size();
+    int32_t bound = (int32_t)sorted_KV.size() - 1;
+    int32_t max_non_leaf = sorted_KV.size() / constants::KEYS_PER_NODE - 1;
 
     // Iterate each leaf element to find all non-leaf elements
     for (int32_t count = 0; count < bound - padding; ++count) {
@@ -203,16 +193,18 @@ int32_t Database::convertToSST(vector<vector<BTreeNode>>& non_leaf_nodes, aligne
         bloom_filter.set(sorted_KV.data[count].first);
         // These are all elements in non-leaf nodes
         if (count % constants::KEYS_PER_NODE == constants::KEYS_PER_NODE - 1) {
-            insertHelper(non_leaf_nodes, counters, sorted_KV.data[count].first, current_level);
+            insertHelper(non_leaf_nodes, counters, sorted_KV.data[count].first, current_level, max_non_leaf);
         }
     }
     // Iterating padded elements
     for (int32_t count = bound - padding; count < bound; ++count) {
         // These are all elements in non-leaf nodes
         if (count % constants::KEYS_PER_NODE == constants::KEYS_PER_NODE - 1) {
-            insertHelper(non_leaf_nodes, counters, sorted_KV.data[count].first, current_level);
+            insertHelper(non_leaf_nodes, counters, sorted_KV.data[count].first, current_level, max_non_leaf);
         }
     }
+    // We still have one last element that has not been added to the filter
+    bloom_filter.set(sorted_KV.data[bound].first);
 
     #ifdef DEBUG
         print_B_Tree(non_leaf_nodes, sorted_KV);
