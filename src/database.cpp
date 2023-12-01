@@ -297,7 +297,7 @@ string Database::writeToSST() {
 
     if (ifCompact) {
         // Write Bloom Filter to storage
-        bloom_filter.writeToBloomFilter(filter_path);
+        bloom_filter.writeToStorage(filter_path);
     }
 
     // Add to the maintained directory list

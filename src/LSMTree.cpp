@@ -329,7 +329,7 @@ void LSMTree::merge_down_helper(const vector<Level>::iterator& cur_level, const 
     #endif
     // Write bloom filter to storage
     if (last_compaction)
-        bloom_filter.writeToBloomFilter(filter_path / output_filename);
+        bloom_filter.writeToStorage(filter_path / output_filename);
 
     // Compaction finished. Close and Remove all files on current level
     for (int i = 0; i < num_sst; ++i) {
@@ -786,18 +786,23 @@ bool LSMTree::read(const string& file_path, const int& fd, char*& data, const of
 
 // Given a level information, calculate the number of kv entries on the SST leaves
 size_t LSMTree::calculate_sst_size(Level& cur_level) {
-    size_t total_num_entries = constants::MEMTABLE_SIZE; // num entries in memtable
-    total_num_entries *= pow(constants::LSMT_SIZE_RATIO, cur_level.level); // num entries in each SST on cur_level
+    // num entries in memtable
+    size_t total_num_entries = constants::MEMTABLE_SIZE;
+    // num entries in each SST on cur_level
+    total_num_entries *= pow(constants::LSMT_SIZE_RATIO, cur_level.level); 
     if (cur_level.last_level) {
-        total_num_entries *= cur_level.cur_size; // For Dostoevsky, if it is at the last level, they will be a big contiguous run
+        // For Dostoevsky, if it is at the last level, they will be a big contiguous run
+        total_num_entries *= cur_level.cur_size; 
     }
     return total_num_entries;
 }
 
+// Given a file path to a filter of a level, and a key, probing if the key is in the level
 bool LSMTree::check_bloomFilter(const fs::path& filter_path, const int64_t& key, Level& cur_level) {
-    size_t total_num_bits = (calculate_sst_size(cur_level)
-                       * BloomFilter::calculate_num_bits_per_entry(cur_level.level, num_levels)); // Convert total num of kv entries to num of BF bits
-    size_t total_num_cache_lines = total_num_bits >> constants::CACHE_LINE_SIZE_SHIFT; // One cacheline has 256 Bytes = 2048 bits = 2^11 bits
+    float bits_per_entry = BloomFilter::calculate_num_bits_per_entry(cur_level.level, num_levels);
+    // Convert total num of kv entries to num of BF bits
+    size_t total_num_bits = (size_t)(calculate_sst_size(cur_level) * bits_per_entry);
+    size_t total_num_cache_lines = total_num_bits >> constants::CACHE_LINE_SIZE_BITS_SHIFT;
 
     int fd = open(filter_path.c_str(), O_RDONLY | O_SYNC | O_DIRECT, 0777);
     #ifdef ASSERT
@@ -806,19 +811,21 @@ bool LSMTree::check_bloomFilter(const fs::path& filter_path, const int64_t& key,
 
     // Get the cacheline index
     size_t cache_line_hash = murmur_hash(key, 0) % total_num_cache_lines;
-    // To get the page index of the cacheline. One page has 16 (2^4) cachelines
+    // To get the page index of the cacheline. One page has multiple cachelines
     size_t page = cache_line_hash >> constants::PAGE_CACHELINE_SHIFT;
-    // To get the cacheline index on the page (one of 2^4 cachelines)
+    // To get the cacheline index on the page
     size_t cache_line_hash_on_page = cache_line_hash & ((1<<constants::PAGE_CACHELINE_SHIFT) - 1);
 
     char* tmp = nullptr;
     read(filter_path, fd, tmp, page << constants::PAGE_SIZE_SHIFT, false, false);
 
-    bitset<constants::CACHE_LINE_SIZE>* blocked_bitmaps = (bitset<constants::CACHE_LINE_SIZE>*)tmp; // Array of bitset<constants::CACHE_LINE_SIZE>
+    // Array of bitset<constants::CACHE_LINE_SIZE>
+    bitset<constants::CACHE_LINE_SIZE_BITS>* blocked_bitmaps = (bitset<constants::CACHE_LINE_SIZE_BITS>*)tmp; 
 
-    for (uint32_t i = 1; i <= constants::BLOOM_FILTER_NUM_HASHES; ++i) {
+    for (uint32_t i = 1; i <= BloomFilter::calculate_num_of_hashes(bits_per_entry); ++i) {
         // Get the bit index
-        size_t hash = murmur_hash(key, i) & ((1<<constants::CACHE_LINE_SIZE_SHIFT) - 1);
+        size_t hash = murmur_hash(key, i) & ((1<<constants::CACHE_LINE_SIZE_BITS_SHIFT) - 1);
+        // If any of the hash results in a negative in the probing, return DNE
         if (!blocked_bitmaps[cache_line_hash_on_page].test(hash)) {
             int close_res = close(fd);
             #ifdef ASSERT
@@ -834,7 +841,10 @@ bool LSMTree::check_bloomFilter(const fs::path& filter_path, const int64_t& key,
     return true;
 }
 
+// Generate the filename of a SST or a filter
+// Format: <LSMT_level>_<time><clock>_<min_key_value>_<max_key_value>_<file_offset_of_non_leaf_nodes>.bytes
 string LSMTree::generate_filename(const size_t& level, const int64_t& min_key, const int64_t& max_key, const int32_t& leaf_ends) {
+    // We use time+clock to uniquely identify a timestamp
     string cur_time = to_string(time(0));
     string cur_clock = to_string(clock()); // In case there is a tie in time())
     string prefix = to_string(level).append("_").append(cur_time).append(cur_clock).append("_");
@@ -842,6 +852,7 @@ string LSMTree::generate_filename(const size_t& level, const int64_t& min_key, c
     return prefix.append(suffix);
 }
 
+// Print the LSM-Tree, for debugging purpose
 void LSMTree::print_lsmt() {
     for (size_t i = 0; i < num_levels; ++i) {
         cout << "level " << to_string(i) << " cur_size: " << levels[i].cur_size << endl;
