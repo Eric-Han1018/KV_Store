@@ -35,7 +35,6 @@ class Frame {
 
 };
 
-
 class Bufferpool {
     public:
         size_t current_size;
@@ -58,7 +57,6 @@ class Bufferpool {
             }
         }
 
-        void change_maximal_size(size_t new_maximal_size);
         void insert_to_buffer(const string& p_id, bool leaf_page, char* data);
         bool get_from_buffer(const string& p_id, char*& data);
         void print();

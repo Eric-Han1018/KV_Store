@@ -26,7 +26,7 @@ RBTree::~RBTree() {
     root = nullptr;
 }
 
-// TODO: Insert a key-value pair into the memtable
+// Insert or update key-value pair into the memtable
 Result RBTree::put(const int64_t& key, const int64_t& value) {
     // Check if current tree size reaches maximum, and write to SST
     if (curr_size >= memtable_size) {
@@ -287,9 +287,4 @@ void RBTree::insertNode(Node* node) {
     #ifdef DEBUG
         cout << "Insert key: " << node->key << " value: " << node->value << endl;
     #endif
-}
-
-// TODO: Helper function to delete a node from the Red-Black Tree
-void RBTree::deleteNode(Node* node) {
-    // Implement deletion logic here
 }

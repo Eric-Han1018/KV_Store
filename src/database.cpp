@@ -107,7 +107,8 @@ void Database::closeDB() {
     }
 }
 
-// TODO: Insert a key-value pair into the memtable
+// Insert a key-value pair into the database.
+// If memtable is not full, we will directly insert into memtable, otherwise, flush the full memtable into SST and push to the empty memtable
 void Database::put(const int64_t& key, const int64_t& value) {
     if (memtable->put(key, value) == memtableFull) {
         string file_path = writeToSST();
