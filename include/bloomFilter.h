@@ -49,10 +49,10 @@ class BloomFilter {
         void writeToStorage(const string& filter_path);
         // Calculate the adjusted number of bits based on the formula on Monkey paper
         static inline float calculate_num_bits_per_entry(const size_t& current_level, const size_t& total_level) {
-            if (current_level == total_level - 1) { // TODO: If you change the LSM-Tree RATIO, remember to change the following numbers
-                return 5.3913; // (log4 - log0.1 - log3) / ln2
+            if (current_level == total_level - 1) {
+                return constants::LAST_LEVEL_M; // (logT - logR - log(T-1)) / ln2
             } else {
-                return 2.885 * (total_level - current_level) + 4.7925; // ((L+1-i)log4 - log0.1) / ln2
+                return constants::LOGT_LN2 * (total_level - current_level) + constants::LOGR_LN2; // ((L+1-i)logT - logR) / ln2
             }
         }
         // # hashes = M*ln2
