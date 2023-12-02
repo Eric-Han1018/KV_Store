@@ -47,7 +47,7 @@ void write_csv(std::string filename, std::vector<std::pair<std::string, std::vec
 int main(int argc, char **argv) {
     srand (1);
     int64_t megabyte = 1 << 20;
-    vector<int32_t> inputDataSize = {32, 64, 128};
+    vector<int32_t> inputDataSize = {1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024};
     vector<bool> useBTrees = {true, false};
 
     cerr << "Running benchmarking..." << endl;
@@ -60,7 +60,7 @@ int main(int argc, char **argv) {
 
     for(bool useBtree : useBTrees) {
         if (useBtree) cerr << "============== Test Btree ==============" << endl;
-        else cerr << "============== Test Binary Search ==============" << endl;
+        else break;
 
         for (int64_t inputSize : inputDataSize) {
             cerr << "-------------- Testing Input Size: " << inputSize << "MB..." << endl;
@@ -135,12 +135,11 @@ int main(int argc, char **argv) {
 
 
     // Wrap into a vector
-    std::vector<std::pair<std::string, std::vector<int>>> vals = {{"InputDataSize", inputDataSize}, {"Put_Btree", put_ops_Btree}, {"Get_Btree", get_ops_Btree}, {"Scan_Btree", scan_ops_Btree}, 
-                                                                                                    {"Put_Binary", put_ops_Binary}, {"Get_Binary", get_ops_Binary}, {"Scan_Binary", scan_ops_Binary}};
+    std::vector<std::pair<std::string, std::vector<int>>> vals = {{"InputDataSize", inputDataSize}, {"Put_Btree", put_ops_Btree}, {"Get_Btree", get_ops_Btree}, {"Scan_Btree", scan_ops_Btree}};
     
     // Write the vector to CSV
     cerr << "Writing results to benchmark.csv...";
-    write_csv("benchmark_step2.csv", vals);
+    write_csv("benchmark_step3.csv", vals);
     cerr << "Done" <<endl;
     
     return 0;
