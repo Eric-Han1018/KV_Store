@@ -273,10 +273,7 @@ void LSMTree::merge_down_helper(const vector<Level>::iterator& cur_level, const 
 
     // We pad repeated last element to form a complete 4kb node
     if (total_count % constants::KEYS_PER_NODE != 0) {
-        int padding = constants::KEYS_PER_NODE - (total_count % constants::KEYS_PER_NODE);
-        for (int32_t i = 0; i < padding; ++i) {
-            output_buffer.emplace_back(output_buffer.back());
-        }
+        int padding = output_buffer.add_padding();
         total_count += padding;
         #ifdef ASSERT
             assert(output_buffer.isFull());
@@ -372,7 +369,8 @@ void LSMTree::parse_SST_level(const string& file_name, size_t& level) {
 }
 
 // Perform BTree search in SST
-const int64_t* LSMTree::search_SST_BTree(int& fd, const fs::path& file_path, const int64_t& key, const size_t& file_end, const size_t& non_leaf_start) {
+const int64_t* LSMTree::search_SST_BTree(int& fd, const fs::path& file_path, const int64_t& key
+                                                            , const size_t& file_end, const size_t& non_leaf_start) {
     // Search BTree non-leaf nodes to find the offset of leaf
     const int32_t offset = BTree::search_BTree_non_leaf_nodes(*this, fd, file_path, key, file_end, non_leaf_start);
     if (offset < 0) return nullptr;
@@ -402,7 +400,8 @@ const int64_t* LSMTree::search_SST_BTree(int& fd, const fs::path& file_path, con
 }
 
 // Perform original binary search in SST
-const int64_t* LSMTree::search_SST_Binary(int& fd, const fs::path& file_path, const int64_t& key, const size_t& file_end, const size_t& non_leaf_start) {
+const int64_t* LSMTree::search_SST_Binary(int& fd, const fs::path& file_path, const int64_t& key
+                                                            , const size_t& file_end, const size_t& non_leaf_start) {
     auto num_elements = non_leaf_start / constants::PAIR_SIZE;
 
     // Variables used in binary search
@@ -439,7 +438,8 @@ const int64_t* LSMTree::search_SST_Binary(int& fd, const fs::path& file_path, co
 }
 
 // Helper function to search the key in a SST file
-const int64_t* LSMTree::search_SST(const fs::path& file_path, const int64_t& key, const size_t& file_end, const size_t& non_leaf_start, const bool& use_btree) {
+const int64_t* LSMTree::search_SST(const fs::path& file_path, const int64_t& key, const size_t& file_end
+                                                        , const size_t& non_leaf_start, const bool& use_btree) {
     const int64_t* result = nullptr;
     // Open the SST file
     int fd = open(file_path.c_str(), O_RDONLY | O_SYNC | O_DIRECT, 0777);
@@ -535,7 +535,8 @@ void LSMTree::scan(vector<pair<int64_t, int64_t>>*& sorted_KV, const int64_t& ke
     }
 }
 
-const int32_t LSMTree::scan_helper_BTree(const int& fd, const fs::path& file_path, const int64_t& key1, const size_t& file_end, const size_t& non_leaf_start) {
+const int32_t LSMTree::scan_helper_BTree(const int& fd, const fs::path& file_path, const int64_t& key1, const size_t& file_end
+                                                                                            , const size_t& non_leaf_start) {
     int32_t offset = BTree::search_BTree_non_leaf_nodes(*this, fd, file_path, key1, file_end, non_leaf_start);
     if (offset < 0) return -1;
     BTreeLeafNode* leafNode;
@@ -562,7 +563,8 @@ const int32_t LSMTree::scan_helper_BTree(const int& fd, const fs::path& file_pat
     return (int)(offset / constants::PAIR_SIZE) + low;
 }
 
-const int32_t LSMTree::scan_helper_Binary(const int& fd, const fs::path& file_path, const int64_t& key1, const int32_t& num_elements, const size_t& file_end, const size_t& non_leaf_start) {
+const int32_t LSMTree::scan_helper_Binary(const int& fd, const fs::path& file_path, const int64_t& key1
+                                , const int32_t& num_elements, const size_t& file_end, const size_t& non_leaf_start) {
     // Variables used in binary search
     pair<int64_t, int64_t> cur;
     BTreeLeafNode* leafNode = nullptr;
@@ -599,7 +601,8 @@ const int32_t LSMTree::scan_helper_Binary(const int& fd, const fs::path& file_pa
 
 // Scan SST to get keys within range
 // The implementation is similar with search_SST()
-void LSMTree::scan_SST(vector<pair<int64_t, int64_t>>& sorted_KV, const string& file_path, const int64_t& key1, const int64_t& key2, const size_t& file_end, const size_t& non_leaf_start, size_t& scanPageCount, const bool& use_btree) {
+void LSMTree::scan_SST(vector<pair<int64_t, int64_t>>& sorted_KV, const string& file_path, const int64_t& key1
+        , const int64_t& key2, const size_t& file_end, const size_t& non_leaf_start, size_t& scanPageCount, const bool& use_btree) {
     // Open the SST file
     int fd = open(file_path.c_str(), O_RDONLY | O_SYNC | O_DIRECT, 0777);
  
@@ -633,7 +636,8 @@ void LSMTree::scan_SST(vector<pair<int64_t, int64_t>>& sorted_KV, const string& 
         // Iterate each element and push to vector
         int curPage = floor((i*constants::PAIR_SIZE) / constants::PAGE_SIZE);
         if (curPage != prevPage) {
-            // Under long scan, since the page returned from read() is not in buffer pool, no eviction anymore and we need to delte it manually
+            // Under long scan, since the page returned from read() is not in buffer pool,
+            // no eviction anymore and we need to delte it manually
             if (scanPageCount >= constants::SEQUENTIAL_FLOODING_LIMIT && !bufferHit) {
                 delete leafNode;
             }
@@ -686,7 +690,8 @@ const string LSMTree::parse_pid(const string& file_path, const int32_t& offset) 
 }
 
 // Read either from bufferpool or SST
-bool LSMTree::read(const string& file_path, const int& fd, char*& data, const off_t& offset, const size_t& scanPageCount, const bool& isLeaf) {
+bool LSMTree::read(const string& file_path, const int& fd, char*& data, const off_t& offset, const size_t& scanPageCount
+                                                                                                    , const bool& isLeaf) {
     #ifdef ASSERT
         assert(offset >= 0);
     #endif

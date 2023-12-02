@@ -34,8 +34,8 @@ class BTree {
         vector<int32_t> counters; // Counts the cumulative number of total elements among all the nodes in each level
 
     public:
-        static const int32_t search_BTree_non_leaf_nodes(LSMTree& lsmtree, const int& fd, const fs::path& file_path, const int64_t& key, const size_t& file_end
-                                                                                                                , const size_t& non_leaf_start);
+        static const int32_t search_BTree_non_leaf_nodes(LSMTree& lsmtree, const int& fd, const fs::path& file_path
+                                                        , const int64_t& key, const size_t& file_end, const size_t& non_leaf_start);
         void write_non_leaf_nodes_to_storage(const int& fd, int64_t& offset);
         int32_t convertToBTree(aligned_KV_vector& sorted_KV, BloomFilter& bloom_filter);
         void convertToBtree(const vector<int64_t>& non_leaf_keys, const int32_t& total_count);

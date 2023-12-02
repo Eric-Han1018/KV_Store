@@ -96,8 +96,8 @@ void BTree::insertFixUp(const int32_t& sorted_KV_size) {
 
 // Given a SST file and a key, search in B-Tree non-leaf nodes to find the offset of the leaf
 // The search is performed page-by-page from Buffer Pool
-const int32_t BTree::search_BTree_non_leaf_nodes(LSMTree& lsmtree, const int& fd, const fs::path& file_path, const int64_t& key, const size_t& file_end
-                                                                                                                        , const size_t& non_leaf_start) {
+const int32_t BTree::search_BTree_non_leaf_nodes(LSMTree& lsmtree, const int& fd, const fs::path& file_path, const int64_t& key
+                                                                        , const size_t& file_end, const size_t& non_leaf_start) {
     int64_t offset = non_leaf_start;
     BTreeNonLeafNode* curNode;
     char* tmp;
@@ -173,10 +173,7 @@ int32_t BTree::convertToBTree(aligned_KV_vector& sorted_KV, BloomFilter& bloom_f
 
     // We pad repeated last element to form a complete leaf node
     if ((int32_t)sorted_KV.size() % constants::KEYS_PER_NODE != 0) {
-        padding = constants::KEYS_PER_NODE - ((int32_t)sorted_KV.size() % constants::KEYS_PER_NODE);
-        for (int32_t i = 0; i < padding; ++i) {
-            sorted_KV.emplace_back(sorted_KV.back());
-        }
+        padding = sorted_KV.add_padding();
     }
 
     // We need to send the last element in each leaf node into higher levels, except the last one

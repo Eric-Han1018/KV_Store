@@ -90,10 +90,18 @@ class aligned_KV_vector {
             #endif
             offset += max_len * constants::PAIR_SIZE;
 
-
             // Clear the data
             len = 0;
 
             return data[max_len - 1];
+        }
+
+        // Pad the data to become a mulitple of pages large
+        inline int32_t add_padding() {
+            int32_t padding = constants::KEYS_PER_NODE - ((int32_t)this->size() % constants::KEYS_PER_NODE);
+            for (int32_t i = 0; i < padding; ++i) {
+                this->emplace_back(this->back());
+            }
+            return padding;
         }
 };

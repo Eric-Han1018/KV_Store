@@ -109,7 +109,8 @@ void Database::closeDB() {
 }
 
 // Insert a key-value pair into the database.
-// If memtable is not full, we will directly insert into memtable, otherwise, flush the full memtable into SST and push to the empty memtable
+// If memtable is not full, we will directly insert into memtable, otherwise,
+// flush the full memtable into SST and push to the empty memtable
 void Database::put(const int64_t& key, const int64_t& value) {
     if (memtable->put(key, value) == memtableFull) {
         string file_path = writeToSST();
@@ -192,10 +193,7 @@ string Database::writeToSST() {
         leaf_ends = sorted_KV.size() * constants::PAIR_SIZE;
         // We pad repeated last element to make it 4kb aligned
         if ((int32_t)sorted_KV.size() % constants::KEYS_PER_NODE != 0) {
-            int32_t padding = constants::KEYS_PER_NODE - ((int32_t)sorted_KV.size() % constants::KEYS_PER_NODE);
-            for (int32_t i = 0; i < padding; ++i) {
-                sorted_KV.emplace_back(sorted_KV.back());
-            }
+            sorted_KV.add_padding();
         }
     }
 
