@@ -90,7 +90,7 @@ int main(int argc, char **argv) {
             for (int64_t i = 0; i < inputSize - last_inputSize; ++i) {
                 db.put((int64_t)rand(), (int64_t)rand());
             }
-            double tps = calculate_throughput(start_time, chrono::high_resolution_clock::now(), inputSize);
+            double tps = calculate_throughput(start_time, chrono::high_resolution_clock::now(), inputSize - last_inputSize);
             if (useBtree) put_tps_Btree.emplace_back(tps);
             else put_tps_Binary.emplace_back(tps);
             last_inputSize = inputSize;
