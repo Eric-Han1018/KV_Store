@@ -7,21 +7,11 @@
 #include <algorithm>
 #include "constants.h"
 #include "MurmurHash3.h"
+#include "BTree.h"
 #include <cmath>
 
 using namespace std;
 namespace fs = std::filesystem;
-
-// B-Tree non-leaf Node (members stored contiguously)
-typedef struct alignas(constants::KEYS_PER_NODE * constants::PAIR_SIZE) BTreeNode {
-    int64_t keys[constants::KEYS_PER_NODE] = {0}; // Keys in each node
-    int32_t ptrs[constants::KEYS_PER_NODE + 1] = {0}; // File offsets to children
-    int32_t size = 0;
-} BTreeNode;
-
-typedef struct alignas(constants::KEYS_PER_NODE * constants::PAIR_SIZE) BTreeLeafNode {
-    pair<int64_t, int64_t> data[constants::KEYS_PER_NODE];
-} BTreeLeafNode;
 
 class Frame {
     public:
@@ -52,7 +42,7 @@ class Bufferpool {
         ~Bufferpool() {
             for (auto& bucket : hash_directory) {
                 for (auto& frame : bucket) {
-                    delete (BTreeNode*)(frame.data);
+                    delete (BTreeNonLeafNode*)(frame.data);
                 }
             }
         }

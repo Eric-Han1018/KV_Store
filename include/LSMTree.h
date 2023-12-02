@@ -76,12 +76,13 @@ class LSMTree {
         void print_lsmt();
         void parse_SST_level(const string& file_name, size_t& level);
         size_t calculate_sst_size(Level& cur_level);
+        bool read(const string& file_path, const int& fd, char*& data, const off_t& offset, const size_t& scanPageCount, const bool& isLeaf);
+
 
     private:
         const int64_t* search_SST(const fs::path& file_path, const int64_t& key, const size_t& file_end, const size_t& non_leaf_start, const bool& use_btree);
         const int64_t* search_SST_BTree(int& fd, const fs::path& file_path, const int64_t& key, const size_t& file_end, const size_t& non_leaf_start);
         const int64_t* search_SST_Binary(int& fd, const fs::path& file_path, const int64_t& key, const size_t& file_end, const size_t& non_leaf_start);
-        const int32_t search_BTree_non_leaf_nodes(const int& fd, const fs::path& file_path, const int64_t& key, const size_t& file_end, const size_t& non_leaf_start);
         void parse_SST_name(const string& file_name, int64_t& min_key, int64_t& max_key, size_t& leaf_end);
         void parse_SST_offset(const string& file_name, size_t& leaf_end);
         void scan_SST(vector<pair<int64_t, int64_t>>& sorted_KV, const string& file_path, const int64_t& key1, const int64_t& key2, const size_t& file_end, const size_t& non_leaf_start, size_t& scanPageCount, const bool& use_btree);
@@ -89,13 +90,11 @@ class LSMTree {
         const int32_t scan_helper_BTree(const int& fd, const fs::path& file_path, const int64_t& key1, const size_t& file_end, const size_t& non_leaf_start);
         const int32_t scan_helper_Binary(const int& fd, const fs::path& file_path, const int64_t& key1, const int32_t& num_elements, const size_t& file_end, const size_t& non_leaf_start);
         const string parse_pid(const string& file_name, const int32_t&);
-        bool read(const string& file_path, const int& fd, char*& data, const off_t& offset, const size_t& scanPageCount, const bool& isLeaf);
 
         // LSMTree functions
         void merge_down(const vector<Level>::iterator& current);
         void merge_down_helper(const vector<Level>::iterator& cur_level, const vector<Level>::iterator& next_level, const int& num_sst, const bool& last_compaction, const bool& largest_level);
         void largest_level_move_down(const vector<Level>::iterator& cur_level);
-        friend void insertHelper(vector<vector<BTreeNode>>& non_leaf_nodes, vector<int32_t>& counters, const int64_t& key, int32_t current_level);
 
         // BloomFilter functions
         bool check_bloomFilter(const fs::path& filter_path, const int64_t& key, Level& cur_level);

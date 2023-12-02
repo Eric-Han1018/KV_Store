@@ -2,6 +2,7 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include "database.h"
+#include "BTree.h"
 #include <map>
 #include <list>
 #include <fstream>
@@ -167,67 +168,13 @@ void Database::del(const int64_t& key){
     put(key, constants::TOMBSTONE);
 }
 
-/* Write the levles in the B-Tree to a SST file
- * SST structure: |....sorted_KV (as leaf)....|root|..next level..|...next level...|
- * Return: offset to leaf level
- */
-int32_t Database::convertToSST(vector<vector<BTreeNode>>& non_leaf_nodes, aligned_KV_vector& sorted_KV, BloomFilter& bloom_filter) {
-    // This counts the number of elements in each level
-    vector<int32_t> counters;
-
-    int32_t padding = 0;
-    int32_t current_level = 0;
-
-    // To make things easier, we pad repeated last element to form a complete leaf node
-    if ((int32_t)sorted_KV.size() % constants::KEYS_PER_NODE != 0) {
-        padding = constants::KEYS_PER_NODE - ((int32_t)sorted_KV.size() % constants::KEYS_PER_NODE);
-        for (int32_t i = 0; i < padding; ++i) {
-            sorted_KV.emplace_back(sorted_KV.back());
-        }
-    }
-
-    int32_t bound = (int32_t)sorted_KV.size() - 1;
-    int32_t max_non_leaf = sorted_KV.size() / constants::KEYS_PER_NODE - 1;
-
-    // Iterate each leaf element to find all non-leaf elements
-    for (int32_t count = 0; count < bound - padding; ++count) {
-        // Insert bits in Bloom Filter
-        bloom_filter.set(sorted_KV.data[count].first);
-        // These are all elements in non-leaf nodes
-        if (count % constants::KEYS_PER_NODE == constants::KEYS_PER_NODE - 1) {
-            insertHelper(non_leaf_nodes, counters, sorted_KV.data[count].first, current_level, max_non_leaf);
-        }
-    }
-    // Iterating padded elements
-    for (int32_t count = bound - padding; count < bound; ++count) {
-        // These are all elements in non-leaf nodes
-        if (count % constants::KEYS_PER_NODE == constants::KEYS_PER_NODE - 1) {
-            insertHelper(non_leaf_nodes, counters, sorted_KV.data[count].first, current_level, max_non_leaf);
-        }
-    }
-    // We still have one last element that has not been added to the filter
-    bloom_filter.set(sorted_KV.data[bound].first);
-
-    #ifdef DEBUG
-        print_B_Tree(non_leaf_nodes, sorted_KV);
-    #endif
-
-    insertFixUp(non_leaf_nodes, sorted_KV.size());
-
-    #ifdef DEBUG
-        print_B_Tree(non_leaf_nodes, sorted_KV);
-    #endif
-
-    return sorted_KV.size() * constants::PAIR_SIZE;
-}
-
 /* When memtable reaches its capacity, write it into an SST
  * File name format: timeclock_min_max_leaf-end-offset.bytes
  */
 string Database::writeToSST() {
     // Content in std::vector is stored contiguously
     aligned_KV_vector sorted_KV(constants::MEMTABLE_SIZE); // Stores all non-leaf elements
-    vector<vector<BTreeNode>> non_leaf_nodes; // Stores all leaf elements
+    BTree btree;
     int32_t leaf_ends; // Stores the file offset of the end of leaf nodes
     scan_memtable(sorted_KV, memtable->root);
     
@@ -240,7 +187,7 @@ string Database::writeToSST() {
 
     // We only build up the BTree if we do not need any compaction
     if (ifCompact) {
-        leaf_ends = convertToSST(non_leaf_nodes, sorted_KV, bloom_filter);
+        leaf_ends = btree.convertToBTree(sorted_KV, bloom_filter);
     } else {
         leaf_ends = sorted_KV.size() * constants::PAIR_SIZE;
         // We pad repeated last element to make it 4kb aligned
@@ -271,7 +218,7 @@ string Database::writeToSST() {
     #endif
 
     int nbytes;
-    int offset = 0;
+    int64_t offset = 0;
     // Write clustered leaves
     nbytes = pwrite(fd, (char*)sorted_KV.data, sorted_KV.size()*constants::PAIR_SIZE, offset);
     #ifdef ASSERT
@@ -281,14 +228,7 @@ string Database::writeToSST() {
     if (ifCompact) {
         offset += nbytes;
         // Write non-leaf levels, starting from root
-        for (int32_t i = (int32_t)non_leaf_nodes.size() - 1; i >= 0; --i) {
-            vector<BTreeNode>& level = non_leaf_nodes[i];
-            nbytes = pwrite(fd, (char*)&level[0], level.size()*sizeof(BTreeNode), offset);
-            #ifdef ASSERT
-                assert(nbytes == (int)(level.size()*sizeof(BTreeNode)));
-            #endif
-            offset += nbytes;
-        }
+        btree.write_non_leaf_nodes_to_storage(fd, offset);
     }
 
     int close_res = close(fd);

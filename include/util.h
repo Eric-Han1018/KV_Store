@@ -16,6 +16,3 @@ namespace fs = std::filesystem;
  */
 size_t murmur_hash(const string& key);
 size_t murmur_hash(const int64_t& key, const uint32_t& seed);
-void insertHelper(vector<vector<BTreeNode>>& non_leaf_nodes, vector<int32_t>& counters, const int64_t& key, const int32_t current_level, const int32_t& max_size);
-void insertFixUp(vector<vector<BTreeNode>>& non_leaf_nodes, const int32_t& leaf_end);
-void print_B_Tree(vector<vector<BTreeNode>>& non_leaf_nodes, aligned_KV_vector& sorted_KV);

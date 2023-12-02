@@ -49,7 +49,7 @@ void Bufferpool::evict_clock(int num_pages) {
             if (frame->clock_bit) {
                 frame->clock_bit = false;
             } else {
-                delete (BTreeNode*)(frame->data);
+                delete (BTreeNonLeafNode*)(frame->data);
                 frame = hash_directory[clock_hand].erase(frame);
                 current_size--;
                 num_pages--;
@@ -79,7 +79,7 @@ void Bufferpool::print() {
                 #endif
 
             } else {
-                BTreeNode *nonLeafNode = (BTreeNode*) frame.data;
+                BTreeNonLeafNode *nonLeafNode = (BTreeNonLeafNode*) frame.data;
                 #ifdef DEBUG
                     cout << "nonLeafNode keys: " << nonLeafNode->keys[0] << endl;
                     cout << "nonLeafNode data: " << &nonLeafNode->keys[0] << endl;
