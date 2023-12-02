@@ -35,7 +35,7 @@ void Database::openDB(const string db_name) {
     }
     memtable = new RBTree(memtable_capacity, memtable_root);
     bufferpool = new Bufferpool(constants::BUFFER_POOL_CAPACITY);
-    lsmtree = new LSMTree(db_name, constants::LSMT_DEPTH, bufferpool);
+    lsmtree = new LSMTree(db_name, bufferpool);
 
     if (db_exist) {
         // Restoring the sorted list of existing SST files when reopen DB

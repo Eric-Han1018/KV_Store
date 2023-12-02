@@ -12,7 +12,7 @@
 #include <sstream>
 using namespace std;
 
-RBTree::RBTree(size_t capacity, Node* root): root(root), memtable_size{capacity} {
+RBTree::RBTree(size_t capacity, Node* root): root(root), max_size{capacity} {
     curr_size = 0;
     min_key = numeric_limits<int64_t>::max();
     max_key = numeric_limits<int64_t>::min();
@@ -29,7 +29,7 @@ RBTree::~RBTree() {
 // Insert or update key-value pair into the memtable
 Result RBTree::put(const int64_t& key, const int64_t& value) {
     // Check if current tree size reaches maximum, and write to SST
-    if (curr_size >= memtable_size) {
+    if (curr_size >= max_size) {
         return memtableFull;
     }
 

@@ -93,6 +93,12 @@ void LSMTree::add_SST(const string& file_name) {
     #ifdef DEBUG
         print_lsmt();
     #endif
+
+    // If the lsmtree reaches the maximum level, we allocate one more level for it
+    if (num_levels == max_levels) {
+        levels.emplace_back(Level(num_levels));
+        ++max_levels;
+    }
 }
 
 // Compact the current level on LSMTree to next level

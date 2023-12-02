@@ -254,7 +254,7 @@ void test_put_big(const string& db_name, Database& db, vector<pair<int64_t, int6
         db.put(SST_data->at(i).first, SST_data->at(i).second + 1);
     }
     // Now memtable should be full
-    assert(db.memtable->curr_size == db.memtable->memtable_size);
+    assert(db.memtable->curr_size == db.memtable->max_size);
 
     cout << "--- test case 2: Test put() with exceeding tree capacity ---" << endl;
     for (int64_t i = constants::MEMTABLE_SIZE; i < 2 * constants::MEMTABLE_SIZE; ++i) {
@@ -266,7 +266,7 @@ void test_put_big(const string& db_name, Database& db, vector<pair<int64_t, int6
         db.put(delete_data->at(i).first, delete_data->at(i).second);
     }
     // Now memtable should be full
-    assert(db.memtable->curr_size == db.memtable->memtable_size);
+    assert(db.memtable->curr_size == db.memtable->max_size);
 
     cout << "--- test case 3: Test Update & Deletion on SST ---" << endl;
     cout << "This may take a while..." << endl;
@@ -277,13 +277,13 @@ void test_put_big(const string& db_name, Database& db, vector<pair<int64_t, int6
         db.del(SST_data->at(i + constants::MEMTABLE_SIZE).first);
     }
     // Now memtable should be full
-    assert(db.memtable->curr_size == db.memtable->memtable_size);
+    assert(db.memtable->curr_size == db.memtable->max_size);
     // Insert the deleted entries back
     for (int64_t i = constants::MEMTABLE_SIZE; i < 2 * constants::MEMTABLE_SIZE; ++i) {
         db.put(SST_data->at(i).first, SST_data->at(i).second);
     }
     // Now memtable should be full
-    assert(db.memtable->curr_size == db.memtable->memtable_size);
+    assert(db.memtable->curr_size == db.memtable->max_size);
     // Here we insert more data. This is for testing get() and scan() later-on
     for (int64_t i = 2 * constants::MEMTABLE_SIZE; i < (int64_t)SST_data->size(); ++i) {
         db.put(SST_data->at(i).first, SST_data->at(i).second);
@@ -293,7 +293,7 @@ void test_put_big(const string& db_name, Database& db, vector<pair<int64_t, int6
         db.del(delete_data->at(i).first);
     }
     // Now memtable should be full
-    assert(db.memtable->curr_size == db.memtable->memtable_size);
+    assert(db.memtable->curr_size == db.memtable->max_size);
 
     cout << "--- test case 4: Test Update & Deletion on Memtable ---" << endl;
     // Lastly, we insert 1MB data to fill up the memtable
@@ -302,20 +302,20 @@ void test_put_big(const string& db_name, Database& db, vector<pair<int64_t, int6
         db.put(memtable_data->at(i).first, memtable_data->at(i).second + 4);
     }
     // Now memtable should only have one spot left
-    assert(db.memtable->curr_size == db.memtable->memtable_size - 1);
+    assert(db.memtable->curr_size == db.memtable->max_size - 1);
     // We delete half of the entries in memtable, which should be equivalent to updates with TOMBSTONEs
     // Since the updates happen on memtable, they should be updated in-place
     for (int64_t i = 0; i < constants::MEMTABLE_SIZE - 1; i += 2) {
         db.del(memtable_data->at(i).first);
     }
     // As a result, the memtable size should stay the same
-    assert(db.memtable->curr_size == db.memtable->memtable_size - 1);
+    assert(db.memtable->curr_size == db.memtable->max_size - 1);
     // We re-insert the same keys to memtable, while using different values
     for (pair<int64_t, int64_t>& entry : *memtable_data) {
         db.put(entry.first, entry.second);
     }
     // Now memtable should be full
-    assert(db.memtable->curr_size == db.memtable->memtable_size);
+    assert(db.memtable->curr_size == db.memtable->max_size);
 }
 
 // Test get() on big data size

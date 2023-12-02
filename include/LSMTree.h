@@ -47,15 +47,15 @@ class LSMTree {
         Bufferpool* buffer;
         vector<Level> levels;
         size_t num_levels;
+        size_t max_levels;
         fs::path sst_path;
         fs::path filter_path;
 
-        LSMTree(string db_name, size_t depth, Bufferpool* buffer = nullptr) : db_name(db_name), buffer(buffer), num_levels(1) {
-            while (depth > 0) {
-                int cur_depth = constants::LSMT_DEPTH - depth;
-                // FIXME: what if the depth is not enough?
-                levels.emplace_back(Level(cur_depth));
-                --depth;
+        LSMTree(string db_name, Bufferpool* buffer = nullptr) : db_name(db_name), buffer(buffer), num_levels(1), max_levels(constants::LSMT_DEPTH) {
+            size_t i = 0;
+            while (i < constants::LSMT_DEPTH) {
+                levels.emplace_back(Level(i));
+                ++i;
             }
             levels[0].last_level = true;
             sst_path = constants::DATA_FOLDER + db_name + "/sst/";
