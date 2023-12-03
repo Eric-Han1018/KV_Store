@@ -57,7 +57,7 @@ double calculate_throughput(const chrono::_V2::system_clock::time_point& start_t
 int main(int argc, char **argv) {
     assert(argc == 2);
     srand (1);
-    const int64_t num_ops = 500;
+    const int64_t num_ops = 1000;
     const int64_t megabyte = 1 << 20;
     vector<double> inputDataSize = {1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024};
     vector<bool> useBTrees = {true, false};
