@@ -53,6 +53,6 @@ $(BIN_DIR) $(OBJ_DIR):
 	mkdir -p $(DATA_DIR)
 
 clean:
-	@$(RM) -rv $(EXE) $(TST) $(CLI) $(OBJ_DIR) $(DATA_DIR) ${BIN_DIR}
+	@$(RM) -rv $(EXE) $(TST) $(CLI) $(OBJ_DIR) $(DATA_DIR)/* ${BIN_DIR}
 
 -include $(OBJ:.o=.d)
