@@ -113,7 +113,7 @@ int main(int argc, char **argv) {
         }
         db.closeDB();
         int count = 0;
-        for (auto& path: fs::directory_iterator(constants::DATA_FOLDER + "Benchmark")) {
+        for (auto& path: fs::directory_iterator(constants::DATA_FOLDER + "Benchmark/sst")) {
             fs::remove_all(path);
             ++count;
         }
