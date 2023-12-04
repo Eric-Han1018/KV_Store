@@ -43,6 +43,7 @@ void Database::openDB(const string db_name) {
         for (auto& file_path : fs::directory_iterator(lsmtree->sst_path)) {
             sorted_dir.push_back(file_path.path().filename());
         }
+        if (sorted_dir.size() == 0) return;
         sort(sorted_dir.begin(), sorted_dir.end());
         size_t cur_level;
         for (auto file_path_itr = sorted_dir.begin(); file_path_itr != sorted_dir.end(); ++file_path_itr) {
