@@ -282,7 +282,7 @@ void RBTree::insertNode(Node* node) {
     // Update tree metadata
     curr_size++;
     if (node->key < min_key) min_key = node->key;
-    else if (node->key > max_key) max_key = node->key;
+    if (node->key > max_key) max_key = node->key;
 
     #ifdef DEBUG
         cout << "Insert key: " << node->key << " value: " << node->value << endl;
