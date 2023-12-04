@@ -123,9 +123,6 @@ void test_get_small(const string& db_name, const bool& ifBtree)
         assert(false);
     }
     delete value;
-    // #ifdef DEBUG
-    //     db.bufferpool->print();
-    // #endif
 
     cout << "--- test case 3: Test get() from unexisted keys ---" << endl;
     key = -668;
@@ -141,9 +138,6 @@ void test_get_small(const string& db_name, const bool& ifBtree)
             cout << "Not found Key: " << key << endl;
         #endif
     }
-    // #ifdef DEBUG
-    //     db.bufferpool->print();
-    // #endif
 
     db.closeDB();
 }
@@ -175,9 +169,6 @@ void test_scan_small(const string& db_name, const bool& ifBtree){
     assert(is_sorted(values->begin(), values->end()));
     assert(equal(values->begin(), values->end(), ans.begin()));
     delete values;
-    // #ifdef DEBUG
-    //     db.bufferpool->print();
-    // #endif
 
     cout << "--- test case 2: Test scan() from SST ---" << endl;
     db.put(-1, -10);
@@ -190,9 +181,6 @@ void test_scan_small(const string& db_name, const bool& ifBtree){
     assert(is_sorted(values->begin(), values->end()));
     assert(equal(values->begin(), values->end(), ans.begin()));
     delete values;
-    // #ifdef DEBUG
-    //     db.bufferpool->print();
-    // #endif
 
     cout << "--- test case 3: Test scan() from both memtable and SST ---" << endl;
     db.put(7, 90);
@@ -208,9 +196,6 @@ void test_scan_small(const string& db_name, const bool& ifBtree){
     ans = {{2, 20}, {3, 60}, {4, 40}, {5, 50}, {7, 90}, {8, 80}};
     assert(equal(values->begin(), values->end(), ans.begin()));
     delete values;
-    // #ifdef DEBUG
-    //     db.bufferpool->print();
-    // #endif
 
     db.closeDB();
 }

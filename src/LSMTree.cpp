@@ -15,7 +15,7 @@
 #include <cstring>
 using namespace std;
 
-// Search matching key in SSTs in the order of youngest to oldest
+/* Search matching key in SSTs in the order of youngest to oldest */
 const int64_t* LSMTree::get(const int64_t& key, const bool& use_btree) {
     // Iterate to read each file in descending order (new->old)
     for (int i = 0; i < (int)num_levels; ++i) {
@@ -57,10 +57,8 @@ const int64_t* LSMTree::get(const int64_t& key, const bool& use_btree) {
     return nullptr;
 }
 
+/*  Function to add new SST to the lsmtree */
 void LSMTree::add_SST(const string& file_name) {
-    #ifdef DEBUG
-        cout << "add_SST" << endl;
-    #endif
     levels[0].sorted_dir.emplace_back(file_name);
 
     // At this point, the largest level is the first level and we compact it into one-large SST
@@ -69,6 +67,7 @@ void LSMTree::add_SST(const string& file_name) {
         merge_down_helper(levels.begin(), levels.begin(), levels[0].sorted_dir.size(), true, true);
     }
 
+    // If the size of first level reaches the size ratio, we need to compact it
     if (levels[0].cur_size == constants::LSMT_SIZE_RATIO) {
         merge_down(levels.begin());
 
@@ -102,15 +101,13 @@ void LSMTree::add_SST(const string& file_name) {
     }
 }
 
-// Compact the current level on LSMTree to next level
+/* Function to compact the current level of LSMTree */
 void LSMTree::merge_down(const vector<Level>::iterator& cur_level) {
-    #ifdef DEBUG
-        cout << "merge_down" << endl;
-    #endif
     vector<Level>::iterator next_level;
-    
     next_level = cur_level + 1;
 
+    // If cur level is the largest level of LSMTree, and the size reachse the size ratio
+    // We can simple create a new level, and move the SSTs from cur level to the new level
     if (cur_level->last_level && cur_level->cur_size == constants::LSMT_SIZE_RATIO) {
         largest_level_move_down(cur_level);
         return;
@@ -122,7 +119,7 @@ void LSMTree::merge_down(const vector<Level>::iterator& cur_level) {
         last_compaction = true;
     }
 
-    // TODO: optimize the merge: move files from cur_level to next_level without compaction, and then merge
+    // Call helper function to perform the actual compaction
     merge_down_helper(cur_level, next_level, cur_level->cur_size, last_compaction, cur_level->last_level);
 
     // check if the next_level is largest level, if so compact into one large SST if the cur_size <= LSMT_SIZE_RATIO
@@ -130,12 +127,14 @@ void LSMTree::merge_down(const vector<Level>::iterator& cur_level) {
         merge_down_helper(next_level, next_level, next_level->sorted_dir.size(), true, true);
     }
 
+    // If the next level also need compaction, we can recursively call this function
     if (next_level->cur_size == constants::LSMT_SIZE_RATIO) {
         merge_down(next_level);
     }
 }
 
-// At this point, cur_level is the last_level and cur_size is full, we need to move it to the next_level
+/*  Helper function to create a new level as largest level, then move SSTs from cur level to the new level. 
+    At this point, cur_level is the last_level and cur_size is full */
 void LSMTree::largest_level_move_down(const vector<Level>::iterator& cur_level) {
     string new_filename = cur_level->sorted_dir[0].c_str();
     vector<Level>::iterator next_level = cur_level + 1;
@@ -148,18 +147,15 @@ void LSMTree::largest_level_move_down(const vector<Level>::iterator& cur_level) 
 
     ++next_level->cur_size;
     next_level->last_level = true;
-    cur_level->clear_level();
+    cur_level->cur_size = 0;
+    cur_level->sorted_dir.clear();
     cur_level->last_level = false;
     ++num_levels;
 }
 
-// Helper functions to compact SSTs in current level and send to next level
+/* Helper function to perform the actual compaction algorithm, compact SSTs in current level and move to next level */
 void LSMTree::merge_down_helper(const vector<Level>::iterator& cur_level, const vector<Level>::iterator& next_level, const int& num_sst, 
                                 const bool& last_compaction, const bool& largest_level) {
-    #ifdef DEBUG
-        cout << "merge_down_helper" << endl;
-    #endif
-
     vector<size_t> leaf_ends(num_sst, -1);
     vector<BTreeLeafNode> leafNodes(num_sst);
     vector<pair<int, int>> fds(num_sst); // pair<fd, ret> from open and pread
@@ -193,7 +189,8 @@ void LSMTree::merge_down_helper(const vector<Level>::iterator& cur_level, const 
         assert(fd != -1);
     #endif
 
-    priority_queue<HeapNode, vector<HeapNode>, decltype(comp)> minHeap(comp); //initializes a priority queue (min-heap) of size 0, that stores HeapNode
+    // Initializes a priority queue (min-heap) of size 0, that stores HeapNode
+    priority_queue<HeapNode, vector<HeapNode>, decltype(comp)> minHeap(comp);
     vector<int> pages_read(num_sst, 1);
     vector<int> indices(num_sst, 0);
 
@@ -218,8 +215,9 @@ void LSMTree::merge_down_helper(const vector<Level>::iterator& cur_level, const 
     int64_t min_key = constants::TOMBSTONE;
     if (last_compaction) min_key = minHeap.top().data.first;
 
-    pair<bool,int64_t> found_tombstone; //(is_tombstone, key_tombstone)
+    pair<bool,int64_t> found_tombstone; // Variables for tombstone check: (is_tombstone, key_tombstone)
     found_tombstone.first = false;
+
     while (!minHeap.empty()) {
         HeapNode node = minHeap.top();
         minHeap.pop();
@@ -338,19 +336,15 @@ void LSMTree::merge_down_helper(const vector<Level>::iterator& cur_level, const 
         cur_level->sorted_dir.clear();
         cur_level->sorted_dir.emplace_back(output_filename);
     } else {
-        cur_level->clear_level();
+        cur_level->cur_size = 0;
+        cur_level->sorted_dir.clear();
         ++next_level->cur_size;
         next_level->sorted_dir.emplace_back(output_filename);
     }
 }
 
-void Level::clear_level() {
-    cur_size = 0;
-    sorted_dir.clear();
-}
-
-// Get min_key, max_key and leaf-end offset (end of leaf nodes & start of non-leaf nodes) from a SST file's name
-// SST filename format: <LSMTree_level>_<time><clock>_<min_key>_<max_key>_<leaf_end>.bytes
+/*  To parse SST filename: <LSMTree_level>_<time><clock>_<min_key>_<max_key>_<leaf_end>.bytes
+    Get min_key, max_key and leaf-end offset (end of leaf nodes & start of non-leaf nodes) from a SST file's name */
 void LSMTree::parse_SST_name(const string& file_name, int64_t& min_key, int64_t& max_key, size_t& leaf_end) {
     size_t first = file_name.find('_');
     size_t second = file_name.find('_', first + 1);
@@ -366,20 +360,20 @@ void LSMTree::parse_SST_name(const string& file_name, int64_t& min_key, int64_t&
     #endif
 }
 
-// Get only the leaf offset from a SST file's name
+/* To parse SST filename, get only the leaf offset from a SST file's name */
 void LSMTree::parse_SST_offset(const string& file_name, size_t& leaf_end) {
     size_t start_pos = file_name.find_last_of("_");
     size_t end_pos = file_name.find('.', start_pos);
     leaf_end = stoi(file_name.substr(start_pos + 1, end_pos - start_pos - 1));
 }
 
-// Get only the level from a SST file's name
+/* To parse SST filename, get only the level from a SST file's name */
 void LSMTree::parse_SST_level(const string& file_name, size_t& level) {
     size_t first = file_name.find('_');
     level = stoi(file_name.substr(0, first));
 }
 
-// Perform BTree search in SST
+/* Function to perform BTree search on SST */
 const int64_t* LSMTree::search_SST_BTree(int& fd, const fs::path& file_path, const int64_t& key,
                                          const size_t& file_end, const size_t& non_leaf_start) {
     // Search BTree non-leaf nodes to find the offset of leaf
@@ -410,7 +404,7 @@ const int64_t* LSMTree::search_SST_BTree(int& fd, const fs::path& file_path, con
     return nullptr;
 }
 
-// Perform original binary search in SST
+/* Perform original binary search in SST */
 const int64_t* LSMTree::search_SST_Binary(int& fd, const fs::path& file_path, const int64_t& key,
                                           const size_t& file_end, const size_t& non_leaf_start) {
     auto num_elements = non_leaf_start / constants::PAIR_SIZE;
@@ -448,7 +442,7 @@ const int64_t* LSMTree::search_SST_Binary(int& fd, const fs::path& file_path, co
     return nullptr;
 }
 
-// Helper function to search the key in a SST file
+/* Helper function to search the key in a SST file */
 const int64_t* LSMTree::search_SST(const fs::path& file_path, const int64_t& key, const size_t& file_end,
                                    const size_t& non_leaf_start, const bool& use_btree) {
     const int64_t* result = nullptr;
@@ -473,9 +467,8 @@ const int64_t* LSMTree::search_SST(const fs::path& file_path, const int64_t& key
     return result;
 }
 
-// Merge the scanned arrays from two SSTs 
-// (stored as two consecutive sorted ranges, separated by first_end in sorted_KV)
-// The final sorted array is stored back in sorted_KV
+/*  Merge the scanned arrays from two SSTs (stored as two consecutive sorted ranges, separated by first_end in sorted_KV)
+    The final sorted array is stored back in sorted_KV */
 void LSMTree::merge_scan_results(vector<pair<int64_t, int64_t>>*& sorted_KV, const size_t& first_end) {
     std::vector<std::pair<int64_t, int64_t>> tmp;
     tmp.reserve(sorted_KV->size());
@@ -506,7 +499,7 @@ void LSMTree::merge_scan_results(vector<pair<int64_t, int64_t>>*& sorted_KV, con
     *sorted_KV = std::move(tmp);
 }
 
-// Perform scan operation in SSTs
+/* Perform scan operation in SSTs */
 void LSMTree::scan(vector<pair<int64_t, int64_t>>*& sorted_KV, const int64_t& key1, const int64_t& key2,
                                                                                     const bool& use_btree) {
     size_t len;
@@ -551,6 +544,7 @@ void LSMTree::scan(vector<pair<int64_t, int64_t>>*& sorted_KV, const int64_t& ke
     }
 }
 
+/* Helper function for performing scan on BTree */
 const int32_t LSMTree::scan_helper_BTree(const int& fd, const fs::path& file_path, const int64_t& key1,
                                          const size_t& file_end, const size_t& non_leaf_start) {
     int32_t offset = BTree::search_BTree_non_leaf_nodes(*this, fd, file_path, key1, file_end, non_leaf_start);
@@ -579,6 +573,7 @@ const int32_t LSMTree::scan_helper_BTree(const int& fd, const fs::path& file_pat
     return (int)(offset / constants::PAIR_SIZE) + low;
 }
 
+/* Helper function for performing scan on binary */
 const int32_t LSMTree::scan_helper_Binary(const int& fd, const fs::path& file_path, const int64_t& key1,
                                           const int32_t& num_elements, const size_t& file_end, const size_t& non_leaf_start) {
     // Variables used in binary search
@@ -615,8 +610,7 @@ const int32_t LSMTree::scan_helper_Binary(const int& fd, const fs::path& file_pa
     return low;
 }
 
-// Scan SST to get keys within range
-// The implementation is similar with search_SST()
+/* Scan SST to get keys within range, the implementation is similar with search_SST()*/
 void LSMTree::scan_SST(vector<pair<int64_t, int64_t>>& sorted_KV, const string& file_path, const int64_t& key1, const int64_t& key2,
                        const size_t& file_end, const size_t& non_leaf_start, size_t& scanPageCount, const bool& use_btree) {
     // Open the SST file
@@ -692,7 +686,7 @@ void LSMTree::scan_SST(vector<pair<int64_t, int64_t>>& sorted_KV, const string& 
     #endif
 }
 
-// Combine SST file's name with offset to get the page ID
+/* Combine SST file's name with offset to get the page ID */
 const string LSMTree::parse_pid(const string& file_path, const int32_t& offset) {
     size_t lastSlash = file_path.find_last_of('/');
     size_t lastDot = file_path.find_last_of('.');
@@ -705,7 +699,7 @@ const string LSMTree::parse_pid(const string& file_path, const int32_t& offset) 
     return combinedString.str();
 }
 
-// Read either from bufferpool or SST
+/* Read from bufferpool or storage */
 bool LSMTree::read(const string& file_path, const int& fd, char*& data, const off_t& offset, const size_t& scanPageCount,
                    const bool& isLeaf) {
     #ifdef ASSERT
@@ -714,10 +708,10 @@ bool LSMTree::read(const string& file_path, const int& fd, char*& data, const of
     const string p_id = parse_pid(file_path, offset);
     char* tmp;
     
-    if (constants::USE_BUFFER_POOL && buffer->get_from_buffer(p_id, tmp)) {
+    if (constants::USE_BUFFER_POOL && buffer->get_from_buffer(p_id, tmp)) { // Read from bufferpool
         data = tmp;
         return true;
-    } else {
+    } else { // Read from storage, then insert the page into bufferpool
         tmp = (char*)new BTreeNonLeafNode();
         int ret = pread(fd, tmp, constants::KEYS_PER_NODE * constants::PAIR_SIZE, offset);
         #ifdef ASSERT
@@ -732,7 +726,7 @@ bool LSMTree::read(const string& file_path, const int& fd, char*& data, const of
     }
 }
 
-// Given a level information, calculate the number of kv entries on the SST leaves
+/* Given a level information, calculate the number of kv entries on the SST leaves */
 size_t LSMTree::calculate_sst_size(Level& cur_level) {
     // num entries in memtable
     size_t total_num_entries = constants::MEMTABLE_SIZE;
@@ -745,7 +739,7 @@ size_t LSMTree::calculate_sst_size(Level& cur_level) {
     return total_num_entries;
 }
 
-// Given a file path to a filter of a level, and a key, probing if the key is in the level
+/* Given a file path to a filter of a level, and a key, probing if the key is in the level */
 bool LSMTree::check_bloomFilter(const fs::path& filter_path, const int64_t& key, Level& cur_level) {
     float bits_per_entry = BloomFilter::calculate_num_bits_per_entry(cur_level.level, num_levels);
     // Convert total num of kv entries to num of BF bits
@@ -789,8 +783,8 @@ bool LSMTree::check_bloomFilter(const fs::path& filter_path, const int64_t& key,
     return true;
 }
 
-// Generate the filename of a SST or a filter
-// Format: <LSMT_level>_<time><clock>_<min_key_value>_<max_key_value>_<file_offset_of_non_leaf_nodes>.bytes
+/*  Function to generate the filename of a SST or a filter
+    Format: <LSMT_level>_<time><clock>_<min_key_value>_<max_key_value>_<file_offset_of_non_leaf_nodes>.bytes */
 string LSMTree::generate_filename(const size_t& level, const int64_t& min_key, const int64_t& max_key,
                                   const int32_t& leaf_ends) {
     // We use time+clock to uniquely identify a timestamp
@@ -802,7 +796,7 @@ string LSMTree::generate_filename(const size_t& level, const int64_t& min_key, c
     return prefix.append(suffix);
 }
 
-// Print the LSM-Tree, for debugging purpose
+/* Print the LSM-Tree, for debugging purpose */
 void LSMTree::print_lsmt() {
     for (size_t i = 0; i < num_levels; ++i) {
         cout << "level " << to_string(i) << " cur_size: " << levels[i].cur_size << endl;

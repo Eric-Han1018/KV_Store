@@ -2,6 +2,7 @@
 #include <sstream>
 #include <string>
 
+/* Simple CLI for database */
 int main() {
     Database db(10);
     std::string line;

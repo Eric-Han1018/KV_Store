@@ -21,7 +21,7 @@ namespace constants {
     const bool USE_BUFFER_POOL = true;
 
     // LSM-Tree constants
-    const size_t LSMT_SIZE_RATIO = 4;   // TODO: Experiment with different size ratio later
+    const size_t LSMT_SIZE_RATIO = 4;
     const size_t LSMT_DEPTH = 10;
 
     // Sequential Flooding Prevention constants
@@ -39,8 +39,9 @@ namespace constants {
     const uint32_t PAGE_SIZE_SHIFT = 12; // 4kB=2^12B, #pages <=> #bytes
     const uint32_t PAGE_CACHELINE_SHIFT = 6; // 1 CL=64 Bytes=2^6 Bytes, 1 page=2^6 CL, #pages<=>#cachelines
     const uint32_t BYTE_BIT_SHIFT = 3; // 1Byte=8bits=2^3
+
     // Monkey
-    // TODO: If you change the LSM-Tree RATIO, remember to change the following numbers
+    // If you change the LSM-Tree RATIO, remember to change the following numbers
     const float LAST_LEVEL_M = 5.3913; // (logT - logR - log(T-1)) / ln2, T=4, R=0.1
     const float LOGT_LN2 = 2.885; // logT/ln2, T=4
     const float LOGR_LN2 = 4.7925; // logR/ln2, R=0.1

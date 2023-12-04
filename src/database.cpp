@@ -20,6 +20,7 @@ void Database::openDB(const string db_name) {
     fs::path directoryPath = constants::DATA_FOLDER + db_name;
     bool db_exist = false;
 
+    // Check if db is already exists, if not, we will create a new directory under db name
     if (fs::exists(directoryPath / "sst") && fs::exists(directoryPath / "filter")
         && fs::is_directory(directoryPath / "sst") && fs::is_directory(directoryPath / "filter")) {
         #ifdef DEBUG
@@ -98,20 +99,14 @@ void Database::closeDB() {
                                                                 .append(".bytes");
         rename((lsmtree->sst_path / old_name).c_str(), (lsmtree->sst_path / new_name).c_str());
     }
-    if (memtable) {
-        delete memtable;
-    }
-    if (lsmtree) {
-        delete lsmtree;
-    }
-    if (bufferpool) {
-        delete bufferpool;
-    }
+    if (memtable) delete memtable;
+    if (lsmtree) delete lsmtree;
+    if (bufferpool) delete bufferpool;
 }
 
-// Insert a key-value pair into the database.
-// If memtable is not full, we will directly insert into memtable, otherwise,
-// flush the full memtable into SST and push to the empty memtable
+/*  API for put: insert a key-value pair into the database.
+    If memtable is not full, we will directly insert into memtable, otherwise,
+    flush the full memtable into SST and push to the empty memtable */
 void Database::put(const int64_t& key, const int64_t& value) {
     if (memtable->put(key, value) == memtableFull) {
         string file_path = writeToSST();
@@ -124,6 +119,8 @@ void Database::put(const int64_t& key, const int64_t& value) {
     }
 }
 
+/*  API for get: return the value of the key
+    First check the memtable, then SSTs. Check if the key is already deleted before returing */
 const int64_t* Database::get(const int64_t& key, const bool use_btree){
     int64_t* result;
     if(memtable->get(result, key) == notInMemtable) {
@@ -139,6 +136,9 @@ const int64_t* Database::get(const int64_t& key, const bool use_btree){
     return result;
 }
 
+/*  API for scan: return a pointer to an array containing KV-pairs that are within the range, from key1 to key2.
+    First scan the memtable, then scan all SSTs from youngest to oldest, will merge-sort the results in lsmtree->scan.
+    Lastly, remove all deleted values from results before returing */
 const vector<pair<int64_t, int64_t>>* Database::scan(const int64_t& key1, const int64_t& key2, const bool use_btree) {
     // Check if key1 < key2
     #ifdef ASSERT
@@ -156,6 +156,7 @@ const vector<pair<int64_t, int64_t>>* Database::scan(const int64_t& key1, const 
     return sorted_KV;
 }
 
+/* Helper function to remove all deleted keys from the scanned results */
 void Database::removeTombstones(std::vector<std::pair<int64_t, int64_t>>*& sorted_KV, int64_t tombstone) {
     if (sorted_KV) { // Check if the pointer is not null
         auto newEnd = std::remove_if(sorted_KV->begin(), sorted_KV->end(),
@@ -166,6 +167,7 @@ void Database::removeTombstones(std::vector<std::pair<int64_t, int64_t>>*& sorte
     }
 }
 
+/* API for delete */
 void Database::del(const int64_t& key){
     put(key, constants::TOMBSTONE);
 }
@@ -249,7 +251,7 @@ string Database::writeToSST() {
     return SST_path;
 }
 
-// Helper function to recursively perform inorder scan
+/* Helper function to recursively perform inorder scan */
 void Database::scan_memtable(aligned_KV_vector& sorted_KV, Node* root) {
     if (root != nullptr) {
         scan_memtable(sorted_KV, root->left);
@@ -258,7 +260,7 @@ void Database::scan_memtable(aligned_KV_vector& sorted_KV, Node* root) {
     }
 }
 
-// Clear all the nodes in the tree
+/* Clear all the nodes in the tree */
 void Database::clear_tree() {
     delete memtable->root;
     memtable->root = nullptr;

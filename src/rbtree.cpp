@@ -26,7 +26,7 @@ RBTree::~RBTree() {
     root = nullptr;
 }
 
-// Insert or update key-value pair into the memtable
+/* Insert or update key-value pair into the memtable */
 Result RBTree::put(const int64_t& key, const int64_t& value) {
     // Check if current tree size reaches maximum, and write to SST
     if (curr_size >= max_size) {
@@ -39,7 +39,7 @@ Result RBTree::put(const int64_t& key, const int64_t& value) {
     return allGood;
 }
 
-// Retrieve a value by key
+/* Retrieve a value by key */
 Result RBTree::get(int64_t*& result, const int64_t& key) {
     // Search for the key in the Red-Black Tree
     Node* node = search(root, key);
@@ -55,7 +55,7 @@ Result RBTree::get(int64_t*& result, const int64_t& key) {
     return allGood;
 }
 
-// Search matching key in memtable
+/* Search matching key in memtable */
 Node* RBTree::search(Node* root, const int64_t& key) {
     if (root == nullptr || root->key == key) {
         return root;
@@ -68,7 +68,7 @@ Node* RBTree::search(Node* root, const int64_t& key) {
     }
 }
 
-// Scan the memtable and SST to retrieve all KV-pairs in a key range in key order (key1 < key2)
+/* Scan the memtable and SST to retrieve all KV-pairs in a key range in key order (key1 < key2) */
 void RBTree::scan(vector<pair<int64_t, int64_t>>& sorted_KV, const Node* root, const int64_t& key1, const int64_t& key2) {
     if (root != nullptr) {
         scan(sorted_KV, root->left, key1, key2);
@@ -242,7 +242,7 @@ void RBTree::insertFixup(Node* node) {
     root->color = black;
 }
 
-// Insert a node into the Red-Black Tree
+/* Insert a node into the Red-Black Tree */
 void RBTree::insertNode(Node* node) {
     // Perform a standard Binary Search Tree insertion
     Node* y = nullptr;

@@ -13,6 +13,7 @@
 using namespace std;
 namespace fs = std::filesystem;
 
+// Node for MinHeap
 struct HeapNode {
     pair<int64_t, int64_t> data;
     int arrayIndex; // this index corresponds the index of sorted_dir, the greater the index, newer the file
@@ -37,8 +38,6 @@ class Level {
         };
 
         ~Level() {};
-
-        void clear_level();
 };
 
 class LSMTree {

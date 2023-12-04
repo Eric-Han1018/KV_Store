@@ -132,8 +132,6 @@ int main(int argc, char **argv) {
 
         }
     }
-
-
     // Wrap into a vector
     std::vector<std::pair<std::string, std::vector<int>>> vals = {{"InputDataSize", inputDataSize}, {"Put_Btree", put_ops_Btree}, {"Get_Btree", get_ops_Btree}, {"Scan_Btree", scan_ops_Btree}};
     
