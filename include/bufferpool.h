@@ -7,8 +7,8 @@
 #include <algorithm>
 #include "constants.h"
 #include "MurmurHash3.h"
+#include "BTree.h"
 #include <cmath>
-#include "SST.h"
 
 using namespace std;
 namespace fs = std::filesystem;
@@ -22,8 +22,8 @@ class Frame {
         
         Frame(string page_id, bool leaf_page, char* data):
             p_id(page_id), leaf_page(leaf_page), data(data), clock_bit(true) {}
-};
 
+};
 
 class Bufferpool {
     public:
@@ -39,14 +39,18 @@ class Bufferpool {
             clock_hand = 0;
         }
 
-        ~Bufferpool() {}
+        ~Bufferpool() {
+            for (auto& bucket : hash_directory) {
+                for (auto& frame : bucket) {
+                    delete (BTreeNonLeafNode*)(frame.data);
+                }
+            }
+        }
 
-        void change_maximal_size(size_t new_maximal_size);
         void insert_to_buffer(const string& p_id, bool leaf_page, char* data);
         bool get_from_buffer(const string& p_id, char*& data);
         void print();
 
     private:
-        size_t murmur_hash(const string& key);
         void evict_clock(int num_pages);
 };

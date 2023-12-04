@@ -38,7 +38,7 @@ class Node {
 class RBTree {
     public:
         Node* root;
-        size_t memtable_size;     // Maximum capacity
+        size_t max_size;     // Maximum capacity
         size_t curr_size;         // Current size
         int64_t min_key;          // Minimum key stored in the tree
         int64_t max_key;          // Maximum key stored in the tree

@@ -60,7 +60,7 @@ int main(int argc, char **argv) {
 
     for(bool useBtree : useBTrees) {
         if (useBtree) cerr << "============== Test Btree ==============" << endl;
-        else cerr << "============== Test Binary Search ==============" << endl;
+        else break;
 
         for (int64_t inputSize : inputDataSize) {
             cerr << "-------------- Testing Input Size: " << inputSize << "MB..." << endl;
@@ -116,24 +116,30 @@ int main(int argc, char **argv) {
             else put_ops_Binary.emplace_back(count);
             cerr << "Done" << endl;
 
+            db.closeDB();
             count = 0;
-            for (auto& path: fs::directory_iterator(constants::DATA_FOLDER + "Benchmark")) {
+            for (auto& path: fs::directory_iterator(constants::DATA_FOLDER + "Benchmark/sst")) {
                 fs::remove_all(path);
                 ++count;
             }
             cerr << "Deleted " << count << "SSTs" <<endl;
-            db.closeDB();
+            count = 0;
+            for (auto& path: fs::directory_iterator(constants::DATA_FOLDER + "Benchmark/filter")) {
+                fs::remove_all(path);
+                ++count;
+            }
+            cerr << "Deleted " << count << "Bloom Filters" <<endl;
+
         }
     }
-    
+
 
     // Wrap into a vector
-    std::vector<std::pair<std::string, std::vector<int>>> vals = {{"InputDataSize", inputDataSize}, {"Put_Btree", put_ops_Btree}, {"Get_Btree", get_ops_Btree}, {"Scan_Btree", scan_ops_Btree}, 
-                                                                                                    {"Put_Binary", put_ops_Binary}, {"Get_Binary", get_ops_Binary}, {"Scan_Binary", scan_ops_Binary}};
+    std::vector<std::pair<std::string, std::vector<int>>> vals = {{"InputDataSize", inputDataSize}, {"Put_Btree", put_ops_Btree}, {"Get_Btree", get_ops_Btree}, {"Scan_Btree", scan_ops_Btree}};
     
     // Write the vector to CSV
     cerr << "Writing results to benchmark.csv...";
-    write_csv("benchmark_step2.csv", vals);
+    write_csv("benchmark_step3.csv", vals);
     cerr << "Done" <<endl;
     
     return 0;

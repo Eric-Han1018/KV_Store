@@ -32,16 +32,13 @@ LDLIBS   :=
 
 .PHONY: db test clean
 
-db: CFLAGS += -O3
+db: CFLAGS += -O3 -Wno-unused-variable -Wno-unused-but-set-variable
 db: $(OBJ) | $(BIN_DIR)
 	$(CC) $(LDFLAGS) $(filter-out $(OBJ_DIR)/unittest.o, $(OBJ)) $(LDLIBS) -o $(EXE)
 
-test: CFLAGS += -g -DDEBUG -DASSERT
+test: CFLAGS += -g -DASSERT #-DDEBUG -DSLOW_ASSERT
 test: $(OBJ) | $(BIN_DIR)
 	$(CC) $(LDFLAGS) $(filter-out $(OBJ_DIR)/benchmark.o, $(OBJ)) $(LDLIBS) -o $(TST)
-
-# btree: $(OBJ) | $(BIN_DIR)
-# 	$(CC) $(LDFLAGS) $(filter-out $(OBJ_DIR)/unittest.o, $(filter-out $(OBJ_DIR)/benchmark.o, $(OBJ))) $(LDLIBS) -o $(BT)
 
 $(OBJ_DIR)/%.o: $(SRC_DIR)/%.cpp | $(OBJ_DIR)
 	$(CC) $(CPPFLAGS) $(CFLAGS) -c $< -o $@

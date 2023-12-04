@@ -12,7 +12,7 @@
 #include <sstream>
 using namespace std;
 
-RBTree::RBTree(size_t capacity, Node* root): root(root), memtable_size{capacity} {
+RBTree::RBTree(size_t capacity, Node* root): root(root), max_size{capacity} {
     curr_size = 0;
     min_key = numeric_limits<int64_t>::max();
     max_key = numeric_limits<int64_t>::min();
@@ -26,10 +26,10 @@ RBTree::~RBTree() {
     root = nullptr;
 }
 
-// TODO: Insert a key-value pair into the memtable
+// Insert or update key-value pair into the memtable
 Result RBTree::put(const int64_t& key, const int64_t& value) {
     // Check if current tree size reaches maximum, and write to SST
-    if (curr_size >= memtable_size) {
+    if (curr_size >= max_size) {
         return memtableFull;
     }
 
@@ -252,6 +252,7 @@ void RBTree::insertNode(Node* node) {
         y = x;
         if (node->key == x->key) {
             x->value = node->value;
+            delete node;
             return;
         }
         else if (node->key < x->key)
@@ -286,9 +287,4 @@ void RBTree::insertNode(Node* node) {
     #ifdef DEBUG
         cout << "Insert key: " << node->key << " value: " << node->value << endl;
     #endif
-}
-
-// TODO: Helper function to delete a node from the Red-Black Tree
-void RBTree::deleteNode(Node* node) {
-    // Implement deletion logic here
 }
