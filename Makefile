@@ -9,7 +9,6 @@ DATA_DIR := data
 EXE := $(BIN_DIR)/db
 TST := $(BIN_DIR)/tests
 BT  := $(BIN_DIR)/btree
-CLI := $(BIN_DIR)/cli
 SRC := $(wildcard $(SRC_DIR)/*.cpp)
 OBJ := $(SRC:$(SRC_DIR)/%.cpp=$(OBJ_DIR)/%.o)
 
@@ -31,19 +30,15 @@ LDFLAGS  := -Llib
 LDLIBS   :=
 
 
-.PHONY: db test cli clean
+.PHONY: db test clean
 
 db: CFLAGS += -O3 -Wno-unused-variable -Wno-unused-but-set-variable
 db: $(OBJ) | $(BIN_DIR)
-	$(CC) $(LDFLAGS) $(filter-out $(OBJ_DIR)/unittest.o $(OBJ_DIR)/main.o, $(OBJ)) $(LDLIBS) -o $(EXE)
+	$(CC) $(LDFLAGS) $(filter-out $(OBJ_DIR)/unittest.o, $(OBJ)) $(LDLIBS) -o $(EXE)
 
 test: CFLAGS += -g -DASSERT #-DDEBUG -DSLOW_ASSERT
 test: $(OBJ) | $(BIN_DIR)
-	$(CC) $(LDFLAGS) $(filter-out $(OBJ_DIR)/benchmark.o $(OBJ_DIR)/main.o, $(OBJ)) $(LDLIBS) -o $(TST)
-
-cli: CFLAGS += -g
-cli: $(OBJ) | $(BIN_DIR)
-	$(CC) $(LDFLAGS) $(filter-out $(OBJ_DIR)/benchmark.o $(OBJ_DIR)/unittest.o, $(OBJ)) $(LDLIBS) -o $(CLI)
+	$(CC) $(LDFLAGS) $(filter-out $(OBJ_DIR)/benchmark.o, $(OBJ)) $(LDLIBS) -o $(TST)
 
 $(OBJ_DIR)/%.o: $(SRC_DIR)/%.cpp | $(OBJ_DIR)
 	$(CC) $(CPPFLAGS) $(CFLAGS) -c $< -o $@
@@ -53,6 +48,6 @@ $(BIN_DIR) $(OBJ_DIR):
 	mkdir -p $(DATA_DIR)
 
 clean:
-	@$(RM) -rv $(EXE) $(TST) $(CLI) $(OBJ_DIR) $(DATA_DIR)/* ${BIN_DIR}
+	@$(RM) -rv $(EXE) $(TST) $(OBJ_DIR) $(DATA_DIR)/* ${BIN_DIR}
 
 -include $(OBJ:.o=.d)
