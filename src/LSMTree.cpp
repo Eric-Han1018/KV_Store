@@ -332,10 +332,10 @@ void LSMTree::merge_down_helper(const vector<Level>::iterator& cur_level, const 
     }
 
     // Add to the maintained directory list
-    if (largest_level && non_leaf_keys.size() != 0) {
+    if (largest_level && total_count != 0) {
         cur_level->sorted_dir.clear();
         cur_level->sorted_dir.emplace_back(output_filename);
-    } else if (non_leaf_keys.size() == 0) { // If by any change the compacted level is empty
+    } else if (total_count == 0) { // If by any change the compacted level is empty
         cur_level->cur_size = 0;
         cur_level->sorted_dir.clear();
         remove((sst_path / output_filename).c_str());
