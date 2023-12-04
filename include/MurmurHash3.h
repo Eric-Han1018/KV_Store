@@ -10,6 +10,8 @@
 
 // Microsoft Visual Studio
 
+// Acknowledge: the public source code is obtained from: https://github.com/aappleby/smhasher/blob/master/src/MurmurHash3.cpp. 
+
 #if defined(_MSC_VER) && (_MSC_VER < 1600)
 
 typedef unsigned char uint8_t;
