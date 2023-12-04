@@ -292,7 +292,7 @@ void LSMTree::merge_down_helper(const vector<Level>::iterator& cur_level, const 
 
     // Build up the B-Tree if it is the last compaction
     int64_t leaf_end = total_count*constants::PAIR_SIZE;
-    if (last_compaction) {
+    if (last_compaction && non_leaf_keys.size() != 0) {
         BTree btree;
         // Build-up the non-leaf nodes
         btree.convertToBtree(non_leaf_keys, total_count);
@@ -313,7 +313,7 @@ void LSMTree::merge_down_helper(const vector<Level>::iterator& cur_level, const 
         assert(result == 0);
     #endif
     // Write bloom filter to storage
-    if (last_compaction)
+    if (last_compaction && non_leaf_keys.size() != 0)
         bloom_filter.writeToStorage(filter_path / output_filename);
 
     // Compaction finished. Close and Remove all files on current level
@@ -332,9 +332,13 @@ void LSMTree::merge_down_helper(const vector<Level>::iterator& cur_level, const 
     }
 
     // Add to the maintained directory list
-    if (largest_level) {
+    if (largest_level && non_leaf_keys.size() != 0) {
         cur_level->sorted_dir.clear();
         cur_level->sorted_dir.emplace_back(output_filename);
+    } else if (non_leaf_keys.size() == 0) { // If by any change the compacted level is empty
+        cur_level->cur_size = 0;
+        cur_level->sorted_dir.clear();
+        remove((sst_path / output_filename).c_str());
     } else {
         cur_level->cur_size = 0;
         cur_level->sorted_dir.clear();
