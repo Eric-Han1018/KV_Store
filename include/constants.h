@@ -44,5 +44,5 @@ namespace constants {
     // If you change the LSM-Tree RATIO, remember to change the following numbers
     const float LAST_LEVEL_M = 5.3913; // (logT - logR - log(T-1)) / ln2, T=4, R=0.1
     const float LOGT_LN2 = 2.885; // logT/ln2, T=4
-    const float LOGR_LN2 = 4.7925; // logR/ln2, R=0.1
+    const float LOGR_LN2 = 4.7925; // -logR/ln2, R=0.1
 }
