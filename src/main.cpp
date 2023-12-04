@@ -7,7 +7,7 @@ int main() {
     Database db(10);
     std::string line;
 
-    std::cout << "Database CLI. \nMemtable has size capacity of 10. \nCommands: <open `db_name`> <close> <put `key` `value`> <get `key`> <scan `key1` `key2`> <delete `key`> \nType 'quit' to exit.\n";
+    std::cout << "Database CLI. \nMemtable has size capacity of 10. \nCommands: <open `db_name`> <close> <put `key` `value`> <get `key`> <scan `key1` `key2`> <del `key`> \nType 'quit' to exit.\n";
 
     while (true) {
         std::cout << "> ";
