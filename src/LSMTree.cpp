@@ -313,7 +313,7 @@ void LSMTree::merge_down_helper(const vector<Level>::iterator& cur_level, const 
         assert(result == 0);
     #endif
     // Write bloom filter to storage
-    if (last_compaction && non_leaf_keys.size() != 0)
+    if (last_compaction && total_count != 0)
         bloom_filter.writeToStorage(filter_path / output_filename);
 
     // Compaction finished. Close and Remove all files on current level
