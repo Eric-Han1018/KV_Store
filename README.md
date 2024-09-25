@@ -1,6 +1,6 @@
-# CSC443-FinalProject
+# KV_Store-FinalProject
 
-This is the CSC443/CSC2525H Database System Technology Project, which collaborated with **Weizhou Wang** (1004421262), **Dechen Han** (1006095636) and **Shi Tang** (1005930619).
+This is the CSC443/CSC2525H Database System Technology Project, which collaborated with **Weizhou Wang**, **Dechen Han** and **Shi Tang**.
 
 In this project, we implemented an LSM-Tree based key-value store from scratch with the following simple API:
 - Open(“database name”): opens database and prepares it to run
